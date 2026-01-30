@@ -1,0 +1,849 @@
+package com.parthipan.colorclashcards.game
+
+import com.parthipan.colorclashcards.game.engine.DeckBuilder
+import com.parthipan.colorclashcards.game.engine.GameEngine
+import com.parthipan.colorclashcards.game.model.*
+import org.junit.Assert.*
+import org.junit.Test
+
+/**
+ * Unit tests for the Color Clash Cards game engine.
+ */
+class GameEngineTest {
+
+    // ==================== Deck Tests ====================
+
+    @Test
+    fun `deck contains 108 cards`() {
+        val deck = DeckBuilder.createStandardDeck()
+        assertEquals(108, deck.size)
+    }
+
+    @Test
+    fun `deck contains correct number of each card type`() {
+        val deck = DeckBuilder.createStandardDeck()
+
+        // Count number cards: 4 colors × (1 zero + 2×9 other numbers) = 4 × 19 = 76
+        val numberCards = deck.filter { it.type == CardType.NUMBER }
+        assertEquals(76, numberCards.size)
+
+        // Count action cards: 4 colors × 2 each × 3 types = 24
+        val skipCards = deck.filter { it.type == CardType.SKIP }
+        val reverseCards = deck.filter { it.type == CardType.REVERSE }
+        val drawTwoCards = deck.filter { it.type == CardType.DRAW_TWO }
+        assertEquals(8, skipCards.size)
+        assertEquals(8, reverseCards.size)
+        assertEquals(8, drawTwoCards.size)
+
+        // Count wild cards: 4 of each type = 8
+        val wildColorCards = deck.filter { it.type == CardType.WILD_COLOR }
+        val wildDrawFourCards = deck.filter { it.type == CardType.WILD_DRAW_FOUR }
+        assertEquals(4, wildColorCards.size)
+        assertEquals(4, wildDrawFourCards.size)
+    }
+
+    // ==================== Card Matching Tests ====================
+
+    @Test
+    fun `card can be played if colors match`() {
+        val topCard = Card.number(CardColor.RED, 5)
+        val playCard = Card.number(CardColor.RED, 3)
+
+        assertTrue(playCard.canPlayOn(topCard, CardColor.RED))
+    }
+
+    @Test
+    fun `card can be played if numbers match`() {
+        val topCard = Card.number(CardColor.RED, 5)
+        val playCard = Card.number(CardColor.BLUE, 5)
+
+        assertTrue(playCard.canPlayOn(topCard, CardColor.RED))
+    }
+
+    @Test
+    fun `card cannot be played if neither color nor number match`() {
+        val topCard = Card.number(CardColor.RED, 5)
+        val playCard = Card.number(CardColor.BLUE, 3)
+
+        assertFalse(playCard.canPlayOn(topCard, CardColor.RED))
+    }
+
+    @Test
+    fun `wild card can always be played`() {
+        val topCard = Card.number(CardColor.RED, 5)
+        val wildCard = Card.wildColor()
+
+        assertTrue(wildCard.canPlayOn(topCard, CardColor.RED))
+    }
+
+    @Test
+    fun `action cards match by type`() {
+        val topSkip = Card.skip(CardColor.RED)
+        val playSkip = Card.skip(CardColor.BLUE)
+
+        assertTrue(playSkip.canPlayOn(topSkip, CardColor.RED))
+    }
+
+    // ==================== Game Start Tests ====================
+
+    @Test
+    fun `game starts with correct initial state`() {
+        val players = listOf(
+            Player.human("Player 1"),
+            Player.bot("Bot 1")
+        )
+
+        val state = GameEngine.startGame(players)
+
+        // Each player should have 7 cards
+        assertEquals(7, state.players[0].cardCount)
+        assertEquals(7, state.players[1].cardCount)
+
+        // Discard pile should have 1 card
+        assertEquals(1, state.discardPile.size)
+
+        // Starting card should be a number card
+        assertEquals(CardType.NUMBER, state.topCard?.type)
+
+        // Current color should match starting card
+        assertEquals(state.topCard?.color, state.currentColor)
+
+        // First player should be index 0
+        assertEquals(0, state.currentPlayerIndex)
+
+        // Direction should be clockwise
+        assertEquals(PlayDirection.CLOCKWISE, state.direction)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `game requires at least 2 players`() {
+        val players = listOf(Player.human("Player 1"))
+        GameEngine.startGame(players)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `game requires at most 4 players`() {
+        val players = listOf(
+            Player.human("Player 1"),
+            Player.human("Player 2"),
+            Player.human("Player 3"),
+            Player.human("Player 4"),
+            Player.human("Player 5")
+        )
+        GameEngine.startGame(players)
+    }
+
+    // ==================== Play Card Tests ====================
+
+    @Test
+    fun `playing valid card removes it from hand`() {
+        val players = listOf(
+            Player.human("Player 1"),
+            Player.bot("Bot 1")
+        )
+        var state = GameEngine.startGame(players)
+
+        // Find a playable card
+        val playableCards = GameEngine.getPlayableCards(
+            state.currentPlayer.hand,
+            state.topCard!!,
+            state.currentColor
+        )
+
+        if (playableCards.isNotEmpty()) {
+            val cardToPlay = playableCards.first()
+            val initialHandSize = state.currentPlayer.cardCount
+
+            val chosenColor = if (cardToPlay.type.isWild()) CardColor.RED else null
+            val newState = GameEngine.playCard(state, cardToPlay, chosenColor)
+
+            assertNotNull(newState)
+            // Find the player in new state (may have moved due to turn advance)
+            val playerAfter = newState!!.players.find { it.id == state.currentPlayer.id }
+            assertEquals(initialHandSize - 1, playerAfter?.cardCount)
+        }
+    }
+
+    @Test
+    fun `playing invalid card returns null`() {
+        val players = listOf(
+            Player.human("Player 1"),
+            Player.bot("Bot 1")
+        )
+        val state = GameEngine.startGame(players)
+
+        // Create a card that definitely can't be played
+        val invalidCard = Card.number(
+            color = if (state.currentColor == CardColor.RED) CardColor.BLUE else CardColor.RED,
+            number = if (state.topCard?.number == 0) 9 else 0
+        )
+
+        // This should fail because the card isn't in the player's hand
+        val result = GameEngine.playCard(state, invalidCard)
+        assertNull(result)
+    }
+
+    @Test
+    fun `wild card changes current color`() {
+        // Create a controlled state
+        val wildCard = Card.wildColor()
+        val player1 = Player.human("Player 1").copy(hand = listOf(wildCard))
+        val player2 = Player.bot("Bot 1").copy(hand = listOf(Card.number(CardColor.RED, 5)))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW
+        )
+
+        val newState = GameEngine.playCard(state, wildCard, CardColor.GREEN)
+
+        assertNotNull(newState)
+        assertEquals(CardColor.GREEN, newState!!.currentColor)
+    }
+
+    // ==================== Draw Card Tests ====================
+
+    @Test
+    fun `drawing card adds it to player hand`() {
+        val players = listOf(
+            Player.human("Player 1"),
+            Player.bot("Bot 1")
+        )
+        val state = GameEngine.startGame(players)
+        val initialHandSize = state.currentPlayer.cardCount
+
+        val newState = GameEngine.drawCard(state)
+        val playerAfter = newState.currentPlayer
+
+        assertEquals(initialHandSize + 1, playerAfter.cardCount)
+    }
+
+    // ==================== Action Card Tests ====================
+
+    @Test
+    fun `skip card skips next player`() {
+        val skipCard = Card.skip(CardColor.RED)
+        val player1 = Player.human("Player 1").copy(
+            hand = listOf(skipCard, Card.number(CardColor.BLUE, 1))
+        )
+        val player2 = Player.bot("Bot 1").copy(hand = listOf(Card.number(CardColor.RED, 5)))
+        val player3 = Player.bot("Bot 2").copy(hand = listOf(Card.number(CardColor.RED, 6)))
+
+        val state = GameState(
+            players = listOf(player1, player2, player3),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW
+        )
+
+        val newState = GameEngine.playCard(state, skipCard)
+
+        assertNotNull(newState)
+        // After skip, it should be player 3's turn (index 2), not player 2 (index 1)
+        assertEquals(2, newState!!.currentPlayerIndex)
+    }
+
+    @Test
+    fun `reverse card changes direction in 3+ player game`() {
+        val reverseCard = Card.reverse(CardColor.RED)
+        val player1 = Player.human("Player 1").copy(
+            hand = listOf(reverseCard, Card.number(CardColor.BLUE, 1))
+        )
+        val player2 = Player.bot("Bot 1").copy(hand = listOf(Card.number(CardColor.RED, 5)))
+        val player3 = Player.bot("Bot 2").copy(hand = listOf(Card.number(CardColor.RED, 6)))
+
+        val state = GameState(
+            players = listOf(player1, player2, player3),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            direction = PlayDirection.CLOCKWISE,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW
+        )
+
+        val newState = GameEngine.playCard(state, reverseCard)
+
+        assertNotNull(newState)
+        assertEquals(PlayDirection.COUNTER_CLOCKWISE, newState!!.direction)
+    }
+
+    @Test
+    fun `reverse acts like skip in 2 player game`() {
+        val reverseCard = Card.reverse(CardColor.RED)
+        val player1 = Player.human("Player 1").copy(
+            hand = listOf(reverseCard, Card.number(CardColor.BLUE, 1))
+        )
+        val player2 = Player.bot("Bot 1").copy(hand = listOf(Card.number(CardColor.RED, 5)))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW
+        )
+
+        val newState = GameEngine.playCard(state, reverseCard)
+
+        assertNotNull(newState)
+        // In 2-player, reverse should make it player 1's turn again
+        assertEquals(0, newState!!.currentPlayerIndex)
+    }
+
+    @Test
+    fun `draw two makes next player draw and lose turn`() {
+        val drawTwoCard = Card.drawTwo(CardColor.RED)
+        val player1 = Player.human("Player 1").copy(
+            hand = listOf(drawTwoCard, Card.number(CardColor.BLUE, 1))
+        )
+        val player2 = Player.bot("Bot 1").copy(hand = listOf(Card.number(CardColor.RED, 5)))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW
+        )
+
+        val newState = GameEngine.playCard(state, drawTwoCard)
+
+        assertNotNull(newState)
+        assertEquals(2, newState!!.pendingDrawCount)
+        assertEquals(TurnPhase.MUST_DRAW, newState.turnPhase)
+    }
+
+    // ==================== Win Condition Tests ====================
+
+    @Test
+    fun `player wins when hand is empty`() {
+        val lastCard = Card.number(CardColor.RED, 5)
+        val player1 = Player.human("Player 1").copy(
+            hand = listOf(lastCard),
+            hasCalledLastCard = true
+        )
+        val player2 = Player.bot("Bot 1").copy(hand = listOf(Card.number(CardColor.RED, 3)))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW
+        )
+
+        val newState = GameEngine.playCard(state, lastCard)
+
+        assertNotNull(newState)
+        assertTrue(newState!!.isGameOver)
+        assertEquals(player1.id, newState.winner?.id)
+    }
+
+    // ==================== Last Card Call Tests ====================
+
+    @Test
+    fun `player with one card needs to call last card`() {
+        val player = Player.human("Player 1").copy(
+            hand = listOf(Card.number(CardColor.RED, 5)),
+            hasCalledLastCard = false
+        )
+
+        assertTrue(player.needsLastCardCall)
+    }
+
+    @Test
+    fun `calling last card updates player state`() {
+        val player1 = Player.human("Player 1").copy(
+            hand = listOf(Card.number(CardColor.RED, 5)),
+            hasCalledLastCard = false
+        )
+        val player2 = Player.bot("Bot 1").copy(hand = listOf(Card.number(CardColor.RED, 3)))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            lastCardTimer = System.currentTimeMillis()
+        )
+
+        val newState = GameEngine.callLastCard(state, player1.id)
+        val updatedPlayer = newState.getPlayer(player1.id)
+
+        assertTrue(updatedPlayer!!.hasCalledLastCard)
+        assertNull(newState.lastCardTimer)
+    }
+
+    // ==================== Playable Cards Tests ====================
+
+    @Test
+    fun `getPlayableCards returns correct cards`() {
+        val hand = listOf(
+            Card.number(CardColor.RED, 5),     // matches color
+            Card.number(CardColor.BLUE, 3),   // matches number
+            Card.number(CardColor.GREEN, 7),  // no match
+            Card.wildColor()                   // wild always matches
+        )
+        val topCard = Card.number(CardColor.RED, 3)
+
+        val playable = GameEngine.getPlayableCards(hand, topCard, CardColor.RED)
+
+        assertEquals(3, playable.size)
+        assertTrue(playable.any { it.color == CardColor.RED && it.number == 5 })
+        assertTrue(playable.any { it.color == CardColor.BLUE && it.number == 3 })
+        assertTrue(playable.any { it.type == CardType.WILD_COLOR })
+        assertFalse(playable.any { it.color == CardColor.GREEN && it.number == 7 })
+    }
+
+    // ==================== Card Points Mapping Tests ====================
+
+    @Test
+    fun `number cards have face value points`() {
+        for (i in 0..9) {
+            val card = Card.number(CardColor.RED, i)
+            assertEquals("Number $i should have $i points", i, card.getPoints())
+        }
+    }
+
+    @Test
+    fun `skip card has 20 points`() {
+        val skipCard = Card.skip(CardColor.RED)
+        assertEquals(20, skipCard.getPoints())
+    }
+
+    @Test
+    fun `reverse card has 20 points`() {
+        val reverseCard = Card.reverse(CardColor.BLUE)
+        assertEquals(20, reverseCard.getPoints())
+    }
+
+    @Test
+    fun `draw two card has 20 points`() {
+        val drawTwoCard = Card.drawTwo(CardColor.GREEN)
+        assertEquals(20, drawTwoCard.getPoints())
+    }
+
+    @Test
+    fun `wild color card has 50 points`() {
+        val wildCard = Card.wildColor()
+        assertEquals(50, wildCard.getPoints())
+    }
+
+    @Test
+    fun `wild draw four card has 50 points`() {
+        val wildDrawFour = Card.wildDrawFour()
+        assertEquals(50, wildDrawFour.getPoints())
+    }
+
+    // ==================== Round Points Calculation Tests ====================
+
+    @Test
+    fun `calculateHandPoints returns sum of all card points`() {
+        val hand = listOf(
+            Card.number(CardColor.RED, 5),      // 5 points
+            Card.number(CardColor.BLUE, 3),    // 3 points
+            Card.skip(CardColor.GREEN),         // 20 points
+            Card.wildColor()                    // 50 points
+        )
+
+        val points = GameEngine.calculateHandPoints(hand)
+        assertEquals(5 + 3 + 20 + 50, points)
+        assertEquals(78, points)
+    }
+
+    @Test
+    fun `calculateHandPoints returns 0 for empty hand`() {
+        val points = GameEngine.calculateHandPoints(emptyList())
+        assertEquals(0, points)
+    }
+
+    @Test
+    fun `calculateRoundPoints sums all non-winner hands`() {
+        val winnerId = "winner-id"
+        val players = listOf(
+            Player(id = winnerId, name = "Winner", hand = emptyList()),
+            Player(id = "player2", name = "Player 2", hand = listOf(
+                Card.number(CardColor.RED, 5),   // 5 points
+                Card.number(CardColor.BLUE, 7)   // 7 points
+            )),
+            Player(id = "player3", name = "Player 3", hand = listOf(
+                Card.skip(CardColor.GREEN),      // 20 points
+                Card.wildColor()                 // 50 points
+            ))
+        )
+
+        val roundPoints = GameEngine.calculateRoundPoints(players, winnerId)
+        assertEquals(5 + 7 + 20 + 50, roundPoints)
+        assertEquals(82, roundPoints)
+    }
+
+    @Test
+    fun `calculateRoundPoints returns 0 when all hands empty`() {
+        val winnerId = "winner-id"
+        val players = listOf(
+            Player(id = winnerId, name = "Winner", hand = emptyList()),
+            Player(id = "player2", name = "Player 2", hand = emptyList())
+        )
+
+        val roundPoints = GameEngine.calculateRoundPoints(players, winnerId)
+        assertEquals(0, roundPoints)
+    }
+
+    // ==================== Score Accumulation Tests ====================
+
+    @Test
+    fun `player addScore increases totalScore`() {
+        val player = Player(name = "Test", totalScore = 0)
+        val updatedPlayer = player.addScore(50)
+
+        assertEquals(50, updatedPlayer.totalScore)
+    }
+
+    @Test
+    fun `player addScore accumulates across multiple calls`() {
+        val player = Player(name = "Test", totalScore = 0)
+        val round1 = player.addScore(50)
+        val round2 = round1.addScore(30)
+        val round3 = round2.addScore(100)
+
+        assertEquals(180, round3.totalScore)
+    }
+
+    @Test
+    fun `player resetScore sets totalScore to 0`() {
+        val player = Player(name = "Test", totalScore = 150)
+        val resetPlayer = player.resetScore()
+
+        assertEquals(0, resetPlayer.totalScore)
+    }
+
+    @Test
+    fun `player resetForNewRound keeps totalScore but clears hand`() {
+        val player = Player(
+            name = "Test",
+            totalScore = 100,
+            hand = listOf(Card.number(CardColor.RED, 5)),
+            hasCalledLastCard = true
+        )
+        val resetPlayer = player.resetForNewRound()
+
+        assertEquals(100, resetPlayer.totalScore)
+        assertTrue(resetPlayer.hand.isEmpty())
+        assertFalse(resetPlayer.hasCalledLastCard)
+    }
+
+    // ==================== Round/Match Phase Tests ====================
+
+    @Test
+    fun `round win sets GamePhase to ROUND_OVER when not final round`() {
+        val lastCard = Card.number(CardColor.RED, 5)
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(lastCard), hasCalledLastCard = true)
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.skip(CardColor.GREEN)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            currentRound = 5,  // Not the final round
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val newState = GameEngine.playCard(state, lastCard)
+
+        assertNotNull(newState)
+        assertEquals(GamePhase.ROUND_OVER, newState!!.gamePhase)
+        assertFalse(newState.isMatchOver)
+        assertTrue(newState.isRoundOver)
+    }
+
+    @Test
+    fun `round win sets GamePhase to MATCH_OVER on round 10`() {
+        val lastCard = Card.number(CardColor.RED, 5)
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(lastCard), hasCalledLastCard = true)
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(Card.number(CardColor.BLUE, 7)))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            currentRound = 10,  // Final round
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val newState = GameEngine.playCard(state, lastCard)
+
+        assertNotNull(newState)
+        assertEquals(GamePhase.MATCH_OVER, newState!!.gamePhase)
+        assertTrue(newState.isMatchOver)
+    }
+
+    @Test
+    fun `winning round calculates and adds points to winner`() {
+        val lastCard = Card.number(CardColor.RED, 5)
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(lastCard), hasCalledLastCard = true, totalScore = 50)
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.BLUE, 7),   // 7 points
+            Card.number(CardColor.GREEN, 3)   // 3 points
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            currentRound = 1,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val newState = GameEngine.playCard(state, lastCard)
+
+        assertNotNull(newState)
+        assertEquals(10, newState!!.roundPoints)  // 7 + 3 = 10
+        assertEquals("p1", newState.roundWinnerId)
+        // Winner's score should increase: 50 + 10 = 60
+        val winner = newState.players.find { it.id == "p1" }
+        assertEquals(60, winner?.totalScore)
+    }
+
+    // ==================== Next Round Tests ====================
+
+    @Test
+    fun `startNextRound increments currentRound`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 50)
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 30)
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 3,
+            gamePhase = GamePhase.ROUND_OVER,
+            roundWinnerId = "p1",
+            roundPoints = 20
+        )
+
+        val newState = GameEngine.startNextRound(state)
+
+        assertEquals(4, newState.currentRound)
+        assertEquals(GamePhase.PLAYING, newState.gamePhase)
+    }
+
+    @Test
+    fun `startNextRound preserves player scores`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 50)
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 30)
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 3,
+            gamePhase = GamePhase.ROUND_OVER,
+            roundWinnerId = "p1",
+            roundPoints = 20
+        )
+
+        val newState = GameEngine.startNextRound(state)
+
+        val newPlayer1 = newState.players.find { it.id == "p1" }
+        val newPlayer2 = newState.players.find { it.id == "p2" }
+
+        assertEquals(50, newPlayer1?.totalScore)
+        assertEquals(30, newPlayer2?.totalScore)
+    }
+
+    @Test
+    fun `startNextRound resets hands and deals new cards`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 50, hand = emptyList())
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 30, hand = listOf(Card.number(CardColor.BLUE, 5)))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 3,
+            gamePhase = GamePhase.ROUND_OVER,
+            roundWinnerId = "p1",
+            roundPoints = 20
+        )
+
+        val newState = GameEngine.startNextRound(state)
+
+        // Each player should have 7 cards
+        assertEquals(7, newState.players[0].cardCount)
+        assertEquals(7, newState.players[1].cardCount)
+    }
+
+    @Test
+    fun `startNextRound clears round winner info`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 50)
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 30)
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 3,
+            gamePhase = GamePhase.ROUND_OVER,
+            roundWinnerId = "p1",
+            roundPoints = 20
+        )
+
+        val newState = GameEngine.startNextRound(state)
+
+        assertNull(newState.roundWinnerId)
+        assertEquals(0, newState.roundPoints)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `startNextRound fails if not in ROUND_OVER phase`() {
+        val player1 = Player(id = "p1", name = "Player 1")
+        val player2 = Player(id = "p2", name = "Player 2")
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 3,
+            gamePhase = GamePhase.PLAYING  // Wrong phase
+        )
+
+        GameEngine.startNextRound(state)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `startNextRound fails after final round`() {
+        val player1 = Player(id = "p1", name = "Player 1")
+        val player2 = Player(id = "p2", name = "Player 2")
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 10,  // Final round
+            gamePhase = GamePhase.ROUND_OVER
+        )
+
+        GameEngine.startNextRound(state)
+    }
+
+    // ==================== New Match Tests ====================
+
+    @Test
+    fun `startNewMatch resets scores and round counter`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 150)
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 80)
+
+        val newState = GameEngine.startNewMatch(listOf(player1, player2))
+
+        assertEquals(1, newState.currentRound)
+        assertEquals(GamePhase.PLAYING, newState.gamePhase)
+        assertTrue(newState.players.all { it.totalScore == 0 })
+    }
+
+    @Test
+    fun `TOTAL_ROUNDS constant is 10`() {
+        assertEquals(10, GameState.TOTAL_ROUNDS)
+    }
+
+    @Test
+    fun `isFinalRound returns true on round 10`() {
+        val state = GameState(
+            players = listOf(Player(name = "P1"), Player(name = "P2")),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 10
+        )
+
+        assertTrue(state.isFinalRound)
+    }
+
+    @Test
+    fun `isFinalRound returns false before round 10`() {
+        val state = GameState(
+            players = listOf(Player(name = "P1"), Player(name = "P2")),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 9
+        )
+
+        assertFalse(state.isFinalRound)
+    }
+
+    @Test
+    fun `matchWinner returns player with highest score after match ends`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 150)
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 200)
+        val player3 = Player(id = "p3", name = "Player 3", totalScore = 80)
+
+        val state = GameState(
+            players = listOf(player1, player2, player3),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 10,
+            gamePhase = GamePhase.MATCH_OVER
+        )
+
+        assertEquals("p2", state.matchWinner?.id)
+        assertEquals(200, state.matchWinner?.totalScore)
+    }
+
+    @Test
+    fun `matchWinner returns null when match is not over`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 150)
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 200)
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 5,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        assertNull(state.matchWinner)
+    }
+}

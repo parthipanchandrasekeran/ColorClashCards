@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========== HELPER FUNCTIONS ==========
+
+    // Check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Get user ID
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // Check if user is a player in this room
+    function isPlayerInRoom(roomId) {
+      return exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(uid()));
+    }
+
+    // Check if user is the host of this room
+    function isHost(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == uid();
+    }
+
+    // ========== ROOMS ==========
+
+    match /rooms/{roomId} {
+      // Players in the room can read room info
+      allow read: if isAuth() && isPlayerInRoom(roomId);
+
+      // Anyone authenticated can create a room (they become host)
+      allow create: if isAuth() && request.resource.data.hostId == uid();
+
+      // Only host can update room status
+      allow update: if isAuth() && isHost(roomId);
+
+      // Only host can delete room
+      allow delete: if isAuth() && isHost(roomId);
+
+      // ========== PLAYERS SUBCOLLECTION ==========
+
+      match /players/{playerId} {
+        // All players in room can read player list
+        allow read: if isAuth() && isPlayerInRoom(roomId);
+
+        // User can add themselves as a player
+        allow create: if isAuth() && playerId == uid();
+
+        // User can update their own player doc (e.g., isReady)
+        allow update: if isAuth() && playerId == uid();
+
+        // Host can update/create any player (for bot management)
+        allow write: if isAuth() && isHost(roomId);
+
+        // User can remove themselves, host can remove anyone
+        allow delete: if isAuth() && (playerId == uid() || isHost(roomId));
+      }
+
+      // ========== MATCH SUBCOLLECTION ==========
+
+      match /match/public {
+        // All players can read public match state
+        allow read: if isAuth() && isPlayerInRoom(roomId);
+
+        // Only host can write public match state
+        allow write: if isAuth() && isHost(roomId);
+      }
+
+      // Player hands are stored at: /match/hands/players/{playerId}
+      match /match/hands/players/{playerId} {
+        // Player can ONLY read their own hand
+        allow read: if isAuth() && playerId == uid();
+
+        // Only host can write any hand (anti-cheat)
+        allow write: if isAuth() && isHost(roomId);
+      }
+
+      // ========== ACTIONS SUBCOLLECTION ==========
+
+      match /actions/{actionId} {
+        // All players can read actions (for debugging/UI)
+        allow read: if isAuth() && isPlayerInRoom(roomId);
+
+        // Player can only create actions for themselves
+        allow create: if isAuth()
+          && isPlayerInRoom(roomId)
+          && request.resource.data.playerId == uid();
+
+        // Only host can update actions (mark as processed)
+        allow update: if isAuth() && isHost(roomId);
+
+        // Only host can delete actions (cleanup)
+        allow delete: if isAuth() && isHost(roomId);
+      }
+    }
+  }
+}

@@ -304,47 +304,65 @@ class GameViewModel : ViewModel() {
 
     /**
      * Draw a card from the deck.
+     *
+     * Rules:
+     * - If MUST_DRAW (from +2/+4): Draw penalty cards, turn ends automatically.
+     * - If PLAY_OR_DRAW: Draw exactly ONE card.
+     *   - If drawn card is playable: Show "Play it?" prompt.
+     *   - If drawn card is NOT playable: Pass turn automatically.
+     * - If already DREW_CARD: Cannot draw again.
      */
     fun drawCard() {
         val state = _uiState.value.gameState ?: return
         if (state.currentPlayer.id != humanPlayerId) return
 
-        val drawCount = if (state.turnPhase == TurnPhase.MUST_DRAW) {
-            state.pendingDrawCount
-        } else {
-            1
+        // Handle forced draw from +2 or +4
+        if (state.turnPhase == TurnPhase.MUST_DRAW) {
+            val newState = GameEngine.drawCard(state, state.pendingDrawCount)
+            _uiState.value = _uiState.value.copy(
+                gameState = newState,
+                lastDrawnCard = null,
+                canPlayDrawnCard = false,
+                message = "Drew ${state.pendingDrawCount} cards"
+            )
+            // Turn already advanced by GameEngine
+            checkAndProcessBotTurn()
+            return
         }
 
-        val newState = GameEngine.drawCard(state, drawCount)
+        // Only allow drawing if in PLAY_OR_DRAW phase (haven't drawn yet this turn)
+        if (state.turnPhase != TurnPhase.PLAY_OR_DRAW) return
 
-        // Check if drawn card can be played (only for single draw)
-        if (drawCount == 1 && state.turnPhase != TurnPhase.MUST_DRAW) {
-            val drawnCard = newState.currentPlayer.hand.lastOrNull()
-            val topCard = newState.topCard
+        // Draw exactly ONE card
+        val newState = GameEngine.drawCard(state, 1)
+        val drawnCard = newState.currentPlayer.hand.lastOrNull()
+        val topCard = newState.topCard
 
-            if (drawnCard != null && topCard != null) {
-                val canPlay = drawnCard.canPlayOn(topCard, newState.currentColor)
-                if (canPlay) {
-                    _uiState.value = _uiState.value.copy(
-                        gameState = newState,
-                        lastDrawnCard = drawnCard,
-                        canPlayDrawnCard = true,
-                        message = "You drew ${drawnCard.displayName()}. Play it?"
-                    )
-                    return
+        // Check if drawn card can be played
+        if (drawnCard != null && topCard != null && drawnCard.canPlayOn(topCard, newState.currentColor)) {
+            // Drawn card is playable - let player choose to play or keep
+            _uiState.value = _uiState.value.copy(
+                gameState = newState,
+                lastDrawnCard = drawnCard,
+                canPlayDrawnCard = true,
+                message = "You drew ${drawnCard.displayName()}. Play it?"
+            )
+        } else {
+            // Drawn card is NOT playable - pass turn automatically
+            val passedState = GameEngine.passTurn(newState)
+            _uiState.value = _uiState.value.copy(
+                gameState = passedState,
+                lastDrawnCard = null,
+                canPlayDrawnCard = false,
+                message = "Drew a card. Turn ended."
+            )
+            // Clear message and check for bot turn
+            viewModelScope.launch {
+                delay(1000)
+                if (_uiState.value.message == "Drew a card. Turn ended.") {
+                    _uiState.value = _uiState.value.copy(message = null)
                 }
             }
-        }
-
-        _uiState.value = _uiState.value.copy(
-            gameState = newState,
-            lastDrawnCard = null,
-            canPlayDrawnCard = false,
-            message = if (drawCount > 1) "Drew $drawCount cards" else null
-        )
-
-        // If was forced draw, turn already advanced
-        if (state.turnPhase == TurnPhase.MUST_DRAW) {
             checkAndProcessBotTurn()
         }
     }
@@ -424,6 +442,12 @@ class GameViewModel : ViewModel() {
 
     /**
      * Process a bot player's turn.
+     *
+     * Bot follows the same rules as human:
+     * - If has playable cards: Play one.
+     * - If no playable cards: Draw exactly ONE card.
+     *   - If drawn card is playable: Play it.
+     *   - Otherwise: Pass turn.
      */
     private fun processBotTurn() {
         botTurnJob?.cancel()
@@ -435,17 +459,25 @@ class GameViewModel : ViewModel() {
 
             var state = _uiState.value.gameState ?: return@launch
 
-            // Handle forced draw
+            // Handle forced draw from +2 or +4
             if (state.turnPhase == TurnPhase.MUST_DRAW) {
-                state = GameEngine.drawCard(state, state.pendingDrawCount)
+                val botName = state.currentPlayer.name
+                val drawCount = state.pendingDrawCount
+                state = GameEngine.drawCard(state, drawCount)
                 _uiState.value = _uiState.value.copy(
                     gameState = state,
-                    message = "${state.players.find { it.id == state.currentPlayer.id }?.name} drew ${state.pendingDrawCount} cards"
+                    message = "$botName drew $drawCount cards"
                 )
                 delay(500)
+                // Turn already advanced - check for next bot
+                _uiState.value = _uiState.value.copy(isProcessingBotTurn = false)
+                delay(500)
+                _uiState.value = _uiState.value.copy(message = null)
+                checkAndProcessBotTurn()
+                return@launch
             }
 
-            // Get current state after potential draw
+            // Get current state
             state = _uiState.value.gameState ?: return@launch
             if (state.isGameOver || state.currentPlayer.id == humanPlayerId) {
                 _uiState.value = _uiState.value.copy(isProcessingBotTurn = false)
@@ -455,7 +487,7 @@ class GameViewModel : ViewModel() {
             val bot = state.currentPlayer
             val topCard = state.topCard ?: return@launch
 
-            // Bot chooses a card
+            // Bot chooses a card from hand (if any playable)
             val cardToPlay = BotAgent.chooseCard(
                 bot.hand,
                 topCard,
@@ -464,7 +496,7 @@ class GameViewModel : ViewModel() {
             )
 
             if (cardToPlay != null) {
-                // Play the card
+                // Bot has a playable card - play it
                 val chosenColor = if (cardToPlay.type.isWild()) {
                     BotAgent.chooseWildColor(bot.hand.filter { it.id != cardToPlay.id })
                 } else null
@@ -500,7 +532,7 @@ class GameViewModel : ViewModel() {
                     }
                 }
             } else {
-                // Bot draws a card
+                // Bot has NO playable cards - draw exactly ONE card
                 val stateAfterDraw = GameEngine.drawCard(state, 1)
                 val drawnCard = stateAfterDraw.currentPlayer.hand.lastOrNull()
 
@@ -511,11 +543,12 @@ class GameViewModel : ViewModel() {
 
                 delay(500)
 
-                // Check if bot can play the drawn card
+                // Check if drawn card can be played
                 val currentState = _uiState.value.gameState ?: return@launch
                 val currentTop = currentState.topCard ?: return@launch
 
-                if (drawnCard != null && BotAgent.shouldPlayDrawnCard(drawnCard, currentTop, currentState.currentColor)) {
+                if (drawnCard != null && drawnCard.canPlayOn(currentTop, currentState.currentColor)) {
+                    // Drawn card is playable - bot plays it
                     val chosenColor = if (drawnCard.type.isWild()) {
                         BotAgent.chooseWildColor(currentState.currentPlayer.hand.filter { it.id != drawnCard.id })
                     } else null
@@ -538,7 +571,7 @@ class GameViewModel : ViewModel() {
                         }
                     }
                 } else {
-                    // Pass turn
+                    // Drawn card is NOT playable - pass turn (no more draws allowed)
                     val passedState = GameEngine.passTurn(currentState)
                     _uiState.value = _uiState.value.copy(gameState = passedState)
                 }

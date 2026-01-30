@@ -278,12 +278,21 @@ object GameEngine {
     /**
      * Draw a card for the current player.
      *
+     * Rules:
+     * - Normal draw (count=1): Player draws ONE card and enters DREW_CARD phase.
+     *   They can play that card if it's playable, or pass. No more draws allowed.
+     * - Forced draw (MUST_DRAW from +2 or +4): Player draws the penalty cards and turn ends.
+     *
      * @param state Current game state
      * @param count Number of cards to draw (default 1)
-     * @return Updated game state
+     * @return Updated game state with the drawn card as lastDrawnCard for single draws
      */
     fun drawCard(state: GameState, count: Int = 1): GameState {
-        var newState = state
+        // Prevent drawing if player already drew this turn
+        if (state.turnPhase == TurnPhase.DREW_CARD) {
+            return state
+        }
+
         var deck = state.deck.toMutableList()
         var discardPile = state.discardPile.toMutableList()
         val drawnCards = mutableListOf<Card>()
@@ -306,24 +315,43 @@ object GameEngine {
         }
 
         // Add drawn cards to current player's hand
-        val updatedPlayer = newState.currentPlayer.addCards(drawnCards)
-        newState = newState.copy(
+        val updatedPlayer = state.currentPlayer.addCards(drawnCards)
+        var newState = state.copy(
             deck = deck,
             discardPile = discardPile
         ).updatePlayer(updatedPlayer)
 
-        // If this was a forced draw (from +2 or +4), end turn
+        // If this was a forced draw (from +2 or +4), end turn immediately
         if (state.turnPhase == TurnPhase.MUST_DRAW) {
             newState = advanceTurn(newState.copy(
                 pendingDrawCount = 0,
                 turnPhase = TurnPhase.TURN_ENDED
             ))
         } else {
-            // Normal draw - player can now play the drawn card if valid
-            newState = newState.copy(turnPhase = TurnPhase.PLAY_OR_DRAW)
+            // Normal single draw - enter DREW_CARD phase (no more draws allowed)
+            // Player can only play the drawn card (if playable) or pass
+            newState = newState.copy(turnPhase = TurnPhase.DREW_CARD)
         }
 
         return newState
+    }
+
+    /**
+     * Get the last drawn card (the card most recently added to player's hand).
+     * Used after a draw to check if the drawn card can be played.
+     */
+    fun getLastDrawnCard(state: GameState): Card? {
+        return state.currentPlayer.hand.lastOrNull()
+    }
+
+    /**
+     * Check if the drawn card can be played.
+     */
+    fun canPlayDrawnCard(state: GameState): Boolean {
+        if (state.turnPhase != TurnPhase.DREW_CARD) return false
+        val drawnCard = getLastDrawnCard(state) ?: return false
+        val topCard = state.topCard ?: return false
+        return drawnCard.canPlayOn(topCard, state.currentColor)
     }
 
     /**
@@ -410,10 +438,11 @@ object GameEngine {
     }
 
     /**
-     * Pass turn after drawing (when player cannot or chooses not to play).
+     * Pass turn after drawing (when player cannot or chooses not to play the drawn card).
+     * Only valid in DREW_CARD phase (after player has drawn their one card).
      */
     fun passTurn(state: GameState): GameState {
-        if (state.turnPhase != TurnPhase.PLAY_OR_DRAW) return state
+        if (state.turnPhase != TurnPhase.DREW_CARD) return state
         return advanceTurn(state.copy(turnPhase = TurnPhase.TURN_ENDED))
     }
 

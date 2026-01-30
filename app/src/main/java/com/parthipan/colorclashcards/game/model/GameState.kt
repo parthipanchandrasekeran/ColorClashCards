@@ -17,7 +17,8 @@ enum class PlayDirection {
  * Represents the current phase of a turn.
  */
 enum class TurnPhase {
-    PLAY_OR_DRAW,    // Player can play a card or draw
+    PLAY_OR_DRAW,    // Player can play a card or draw (start of turn)
+    DREW_CARD,       // Player drew a card - can play it or pass (no more draws allowed)
     MUST_DRAW,       // Player must draw (due to +2 or +4)
     CHOOSE_COLOR,    // Player must choose a color (after playing wild)
     TURN_ENDED       // Turn is complete, advance to next player

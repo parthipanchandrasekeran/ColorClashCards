@@ -48,7 +48,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,6 +99,13 @@ fun GameScreen(
             viewModel.startOfflineGame(botCount, difficulty)
         }
     }
+
+    // Cache derived values to prevent recomputation
+    val humanPlayer by remember { derivedStateOf { viewModel.getHumanPlayer() } }
+    val humanPlayerId = humanPlayer?.id ?: ""
+    val isHumanTurn by remember { derivedStateOf { viewModel.isHumanTurn() } }
+    val playableCards by remember { derivedStateOf { viewModel.getPlayableCards() } }
+    val canCallLastCard by remember { derivedStateOf { viewModel.canCallLastCard() } }
 
     val topBarColor = if (mode == "offline") CardGreen else CardBlue
 
@@ -190,7 +199,7 @@ fun GameScreen(
                         PlayersInfoBar(
                             players = gameState.players,
                             currentPlayerId = gameState.currentPlayer.id,
-                            humanPlayerId = viewModel.getHumanPlayer()?.id ?: "",
+                            humanPlayerId = humanPlayerId,
                             modifier = Modifier.padding(8.dp)
                         )
 
@@ -215,9 +224,9 @@ fun GameScreen(
                                 // Current turn indicator with timer
                                 CurrentTurnIndicator(
                                     playerName = gameState.currentPlayer.name,
-                                    isHumanTurn = viewModel.isHumanTurn(),
+                                    isHumanTurn = isHumanTurn,
                                     isProcessing = uiState.isProcessingBotTurn,
-                                    turnSecondsRemaining = if (viewModel.isHumanTurn()) gameState.turnSecondsRemaining else null
+                                    turnSecondsRemaining = if (isHumanTurn) gameState.turnSecondsRemaining else null
                                 )
 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -230,8 +239,8 @@ fun GameScreen(
                                     // Draw pile with stacked cards
                                     StackedDrawPile(
                                         cardsRemaining = gameState.deck.size,
-                                        canDraw = viewModel.isHumanTurn() && !uiState.canPlayDrawnCard,
-                                        mustDraw = gameState.turnPhase == TurnPhase.MUST_DRAW && viewModel.isHumanTurn(),
+                                        canDraw = isHumanTurn && !uiState.canPlayDrawnCard,
+                                        mustDraw = gameState.turnPhase == TurnPhase.MUST_DRAW && isHumanTurn,
                                         drawCount = if (gameState.turnPhase == TurnPhase.MUST_DRAW) gameState.pendingDrawCount else 1,
                                         onClick = { viewModel.drawCard() }
                                     )
@@ -305,14 +314,14 @@ fun GameScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Your Hand (${viewModel.getHumanPlayer()?.cardCount ?: 0} cards)",
+                                    text = "Your Hand (${humanPlayer?.cardCount ?: 0} cards)",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold
                                 )
 
                                 Button(
                                     onClick = { viewModel.callLastCard() },
-                                    enabled = viewModel.canCallLastCard(),
+                                    enabled = canCallLastCard,
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = CardRed,
                                         disabledContainerColor = Color.Gray.copy(alpha = 0.3f)
@@ -326,9 +335,9 @@ fun GameScreen(
 
                             // Player's hand
                             PlayerHand(
-                                hand = viewModel.getHumanPlayer()?.hand ?: emptyList(),
-                                playableCards = viewModel.getPlayableCards(),
-                                isMyTurn = viewModel.isHumanTurn() && !uiState.canPlayDrawnCard,
+                                hand = humanPlayer?.hand ?: emptyList(),
+                                playableCards = playableCards,
+                                isMyTurn = isHumanTurn && !uiState.canPlayDrawnCard,
                                 onCardClick = { card -> viewModel.playCard(card) }
                             )
                         }
@@ -369,7 +378,7 @@ fun GameScreen(
                         roundPoints = state.roundPoints,
                         roundEndReason = state.roundEndReason,
                         players = state.players,
-                        humanPlayerId = viewModel.getHumanPlayer()?.id ?: "",
+                        humanPlayerId = humanPlayerId,
                         onStartNextRound = { viewModel.startNextRound() },
                         onExit = {
                             viewModel.dismissRoundSummary()
@@ -384,7 +393,7 @@ fun GameScreen(
                 uiState.gameState?.let { state ->
                     FinalResultsDialog(
                         players = state.players,
-                        humanPlayerId = viewModel.getHumanPlayer()?.id ?: "",
+                        humanPlayerId = humanPlayerId,
                         onPlayNewMatch = { viewModel.startNewMatch() },
                         onExit = {
                             viewModel.dismissFinalResults()
@@ -411,14 +420,16 @@ private fun PlayersInfoBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         players.forEach { player ->
-            val isCurrentPlayer = player.id == currentPlayerId
-            val isHuman = player.id == humanPlayerId
+            key(player.id) {
+                val isCurrentPlayer = player.id == currentPlayerId
+                val isHuman = player.id == humanPlayerId
 
-            PlayerInfoCard(
-                name = if (isHuman) "You" else player.name,
-                cardCount = player.cardCount,
-                isCurrentPlayer = isCurrentPlayer
-            )
+                PlayerInfoCard(
+                    name = if (isHuman) "You" else player.name,
+                    cardCount = player.cardCount,
+                    isCurrentPlayer = isCurrentPlayer
+                )
+            }
         }
     }
 }
@@ -672,19 +683,43 @@ private fun SuddenDeathWarning(
 
 /**
  * Felt table background with subtle texture pattern.
+ * Optimized: Reduced draw operations and cached pattern data.
  */
 @Composable
 private fun FeltTableBackground() {
-    // Pre-compute pattern positions for performance
-    val patternSeed = remember { 12345L }
+    // Pre-compute pattern positions once
+    val patternData = remember {
+        val random = Random(12345L)
+        FeltPatternData(
+            circles = List(50) { i ->
+                FeltCircle(
+                    xFraction = random.nextFloat(),
+                    yFraction = random.nextFloat(),
+                    radiusFraction = random.nextFloat() * 0.003f + 0.001f,
+                    alpha = random.nextFloat() * 0.03f + 0.01f,
+                    isLight = i % 2 == 0
+                )
+            },
+            lines = List(20) {
+                val startX = random.nextFloat()
+                val startY = random.nextFloat()
+                FeltLine(
+                    startXFraction = startX,
+                    startYFraction = startY,
+                    endXFraction = startX + (random.nextFloat() - 0.5f) * 0.04f,
+                    endYFraction = startY + (random.nextFloat() - 0.5f) * 0.04f
+                )
+            }
+        )
+    }
 
     Canvas(modifier = Modifier.fillMaxSize()) {
         // Base felt color gradient
         drawRect(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFF1B4D3E), // Darker green center
-                    Color(0xFF0D3B2E), // Even darker edges
+                    Color(0xFF1B4D3E),
+                    Color(0xFF0D3B2E),
                     Color(0xFF082A20)
                 ),
                 center = Offset(size.width / 2, size.height / 2),
@@ -692,59 +727,59 @@ private fun FeltTableBackground() {
             )
         )
 
-        // Draw felt texture pattern (deterministic circles and lines)
-        drawFeltTexture(patternSeed)
+        // Draw cached texture pattern
+        val textureColor = Color.White
+        val darkTextureColor = Color.Black
+
+        patternData.circles.forEach { circle ->
+            drawCircle(
+                color = if (circle.isLight) textureColor.copy(alpha = circle.alpha)
+                        else darkTextureColor.copy(alpha = circle.alpha + 0.02f),
+                radius = circle.radiusFraction * size.maxDimension,
+                center = Offset(circle.xFraction * size.width, circle.yFraction * size.height)
+            )
+        }
+
+        patternData.lines.forEach { line ->
+            drawLine(
+                color = textureColor.copy(alpha = 0.02f),
+                start = Offset(line.startXFraction * size.width, line.startYFraction * size.height),
+                end = Offset(line.endXFraction * size.width, line.endYFraction * size.height),
+                strokeWidth = 0.5f
+            )
+        }
+
+        // Vignette effect
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.3f)),
+                center = Offset(size.width / 2, size.height / 2),
+                radius = size.maxDimension * 0.7f
+            )
+        )
     }
 }
 
-private fun DrawScope.drawFeltTexture(seed: Long) {
-    val random = Random(seed)
-    val textureColor = Color.White.copy(alpha = 0.02f)
-    val darkTextureColor = Color.Black.copy(alpha = 0.05f)
+// Data classes for cached pattern
+private data class FeltPatternData(
+    val circles: List<FeltCircle>,
+    val lines: List<FeltLine>
+)
 
-    // Draw small circles for grain texture
-    repeat(150) { i ->
-        val x = random.nextFloat() * size.width
-        val y = random.nextFloat() * size.height
-        val radius = random.nextFloat() * 3f + 1f
-        val alpha = random.nextFloat() * 0.03f + 0.01f
+private data class FeltCircle(
+    val xFraction: Float,
+    val yFraction: Float,
+    val radiusFraction: Float,
+    val alpha: Float,
+    val isLight: Boolean
+)
 
-        drawCircle(
-            color = if (i % 2 == 0) textureColor.copy(alpha = alpha)
-                    else darkTextureColor.copy(alpha = alpha),
-            radius = radius,
-            center = Offset(x, y)
-        )
-    }
-
-    // Draw subtle fiber lines
-    repeat(50) {
-        val startX = random.nextFloat() * size.width
-        val startY = random.nextFloat() * size.height
-        val endX = startX + (random.nextFloat() - 0.5f) * 40f
-        val endY = startY + (random.nextFloat() - 0.5f) * 40f
-
-        drawLine(
-            color = textureColor,
-            start = Offset(startX, startY),
-            end = Offset(endX, endY),
-            strokeWidth = 0.5f
-        )
-    }
-
-    // Add vignette effect at corners
-    val vignetteColors = listOf(
-        Color.Black.copy(alpha = 0.3f),
-        Color.Transparent
-    )
-    drawRect(
-        brush = Brush.radialGradient(
-            colors = vignetteColors.reversed(),
-            center = Offset(size.width / 2, size.height / 2),
-            radius = size.maxDimension * 0.7f
-        )
-    )
-}
+private data class FeltLine(
+    val startXFraction: Float,
+    val startYFraction: Float,
+    val endXFraction: Float,
+    val endYFraction: Float
+)
 
 /**
  * Stacked draw pile with face-down cards using GameCardView and count badge.
@@ -983,6 +1018,11 @@ private fun PlayerHand(
     isMyTurn: Boolean,
     onCardClick: (Card) -> Unit
 ) {
+    // Pre-compute playable card IDs for O(1) lookup
+    val playableCardIds = remember(playableCards) {
+        playableCards.map { it.id }.toSet()
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -990,16 +1030,18 @@ private fun PlayerHand(
         horizontalArrangement = Arrangement.spacedBy((-14).dp)
     ) {
         hand.forEach { card ->
-            val isPlayable = isMyTurn && card in playableCards
+            key(card.id) {
+                val isPlayable = isMyTurn && card.id in playableCardIds
 
-            Box(modifier = Modifier.offset(y = if (isPlayable) (-12).dp else 0.dp)) {
-                GameCardView(
-                    card = card,
-                    modifier = Modifier.width(70.dp),
-                    faceDown = false,
-                    isPlayable = isPlayable,
-                    onClick = if (isPlayable) {{ onCardClick(card) }} else null
-                )
+                Box(modifier = Modifier.offset(y = if (isPlayable) (-12).dp else 0.dp)) {
+                    GameCardView(
+                        card = card,
+                        modifier = Modifier.width(70.dp),
+                        faceDown = false,
+                        isPlayable = isPlayable,
+                        onClick = if (isPlayable) {{ onCardClick(card) }} else null
+                    )
+                }
             }
         }
     }

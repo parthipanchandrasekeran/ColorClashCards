@@ -2,6 +2,7 @@ package com.parthipan.colorclashcards.ui.solo
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,7 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
@@ -42,7 +45,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.parthipan.colorclashcards.ui.theme.CardGreen
-import com.parthipan.colorclashcards.ui.theme.CardRed
 import com.parthipan.colorclashcards.ui.theme.CardYellow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,10 +56,12 @@ fun SoloSetupScreen(
     var selectedBotCount by remember { mutableIntStateOf(1) }
     var selectedDifficulty by remember { mutableStateOf("easy") }
 
+    val scrollState = rememberScrollState()
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Play vs Computer") },
+                title = { Text("Play vs Computer", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
@@ -68,139 +72,153 @@ fun SoloSetupScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = CardGreen,
-                    titleContentColor = MaterialTheme.colorScheme.surface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.surface
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White
                 )
             )
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Number of computer players
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 88.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
+                // Number of computer players
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(
-                        text = "Number of Computer Players",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                    Column(
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        (1..3).forEach { count ->
-                            BotCountChip(
-                                count = count,
-                                selected = selectedBotCount == count,
-                                onClick = { selectedBotCount = count }
+                        Text(
+                            text = "Number of Opponents",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            (1..3).forEach { count ->
+                                BotCountChip(
+                                    count = count,
+                                    label = if (count == 1) "1 Bot" else "$count Bots",
+                                    selected = selectedBotCount == count,
+                                    onClick = { selectedBotCount = count }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Difficulty selection
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Difficulty",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            DifficultyOption(
+                                label = "Easy",
+                                description = "Plays first valid card",
+                                selected = selectedDifficulty == "easy",
+                                onClick = { selectedDifficulty = "easy" }
+                            )
+                            DifficultyOption(
+                                label = "Normal",
+                                description = "Uses action cards smartly",
+                                selected = selectedDifficulty == "normal",
+                                onClick = { selectedDifficulty = "normal" }
                             )
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            // Difficulty selection
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
+                // Game summary - more prominent
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = CardGreen.copy(alpha = 0.15f)
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(
-                        text = "Difficulty",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        DifficultyChip(
-                            label = "Easy",
-                            selected = selectedDifficulty == "easy",
-                            onClick = { selectedDifficulty = "easy" }
+                        Text(
+                            text = "Game Setup",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        DifficultyChip(
-                            label = "Normal",
-                            selected = selectedDifficulty == "normal",
-                            onClick = { selectedDifficulty = "normal" }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "You vs $selectedBotCount Bot${if (selectedBotCount > 1) "s" else ""} \u2022 ${selectedDifficulty.replaceFirstChar { it.uppercase() }}",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = CardGreen
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Game summary
-            OutlinedCard(
-                modifier = Modifier.fillMaxWidth(),
-                border = BorderStroke(1.dp, CardGreen)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Game Setup",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "You vs $selectedBotCount Computer${if (selectedBotCount > 1) "s" else ""}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${selectedDifficulty.replaceFirstChar { it.uppercase() }} Difficulty",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Start button
-            Button(
-                onClick = { onStartGame(selectedBotCount, selectedDifficulty) },
+            // Fixed Start button at bottom
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CardGreen)
+                    .align(Alignment.BottomCenter)
+                    .padding(24.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Start Game",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Button(
+                    onClick = { onStartGame(selectedBotCount, selectedDifficulty) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = CardGreen),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Start Game",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
@@ -209,51 +227,69 @@ fun SoloSetupScreen(
 @Composable
 private fun BotCountChip(
     count: Int,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = "$count",
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-            )
-        },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = CardGreen,
-            selectedLabelColor = Color.White
-        ),
-        modifier = Modifier.size(64.dp, 48.dp)
-    )
-}
-
-@Composable
-private fun DifficultyChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val chipColor = when (label.lowercase()) {
-        "easy" -> CardGreen
-        "normal" -> CardYellow
-        else -> CardRed
-    }
-
     FilterChip(
         selected = selected,
         onClick = onClick,
         label = {
             Text(
                 text = label,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                style = MaterialTheme.typography.labelLarge
             )
         },
         colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = chipColor,
-            selectedLabelColor = if (label.lowercase() == "easy") Color.White else Color.Black
+            selectedContainerColor = CardGreen,
+            selectedLabelColor = Color.White
         ),
-        modifier = Modifier.width(120.dp)
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.height(40.dp)
     )
+}
+
+@Composable
+private fun DifficultyOption(
+    label: String,
+    description: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val chipColor = when (label.lowercase()) {
+        "easy" -> CardGreen
+        "normal" -> CardYellow
+        else -> CardGreen
+    }
+
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) chipColor.copy(alpha = 0.2f) else Color.Transparent
+        ),
+        border = if (selected) BorderStroke(2.dp, chipColor) else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (selected) chipColor else MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }

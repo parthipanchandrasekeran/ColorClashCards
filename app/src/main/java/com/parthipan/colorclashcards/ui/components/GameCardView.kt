@@ -321,33 +321,33 @@ private fun CardFront(
 /**
  * Draw subtle noise pattern on card surface for texture.
  * Pattern is deterministic based on seed for consistent appearance.
+ * Optimized: Reduced number of draw operations.
  */
 private fun DrawScope.drawCardNoisePattern(seed: Long, isWild: Boolean) {
     val random = Random(seed)
-    val patternColor = if (isWild) Color.White.copy(alpha = 0.03f)
-                       else Color.White.copy(alpha = 0.06f)
+    val patternAlpha = if (isWild) 0.03f else 0.06f
+    val patternColor = Color.White.copy(alpha = patternAlpha)
     val darkPatternColor = Color.Black.copy(alpha = 0.04f)
 
-    // Draw small translucent circles
-    repeat(20) { i ->
+    // Draw fewer circles for better performance
+    repeat(8) { i ->
         val x = random.nextFloat() * size.width
         val y = random.nextFloat() * size.height
-        val radius = random.nextFloat() * 4f + 1f
-        val useLight = i % 3 != 0
+        val radius = random.nextFloat() * 3f + 1f
 
         drawCircle(
-            color = if (useLight) patternColor else darkPatternColor,
+            color = if (i % 3 != 0) patternColor else darkPatternColor,
             radius = radius,
             center = Offset(x, y)
         )
     }
 
-    // Draw short translucent lines
-    repeat(8) {
+    // Draw fewer lines
+    repeat(4) {
         val startX = random.nextFloat() * size.width
         val startY = random.nextFloat() * size.height
-        val endX = startX + (random.nextFloat() - 0.5f) * 20f
-        val endY = startY + (random.nextFloat() - 0.5f) * 20f
+        val endX = startX + (random.nextFloat() - 0.5f) * 15f
+        val endY = startY + (random.nextFloat() - 0.5f) * 15f
 
         drawLine(
             color = patternColor,

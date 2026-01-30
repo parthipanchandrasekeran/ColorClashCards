@@ -29,6 +29,80 @@ object GameEngine {
     }
 
     /**
+     * Determine the winner when round times out (sudden death expires).
+     * Winner is determined by:
+     * 1. Lowest hand points
+     * 2. Tie-breaker: fewer cards in hand
+     * 3. Tie-breaker: earlier in player order (lower index)
+     *
+     * @param players List of players
+     * @return The player who wins by timeout rules
+     */
+    fun determineTimeoutWinner(players: List<Player>): Player {
+        return players
+            .mapIndexed { index, player ->
+                Triple(player, calculateHandPoints(player.hand), index)
+            }
+            .sortedWith(
+                compareBy<Triple<Player, Int, Int>> { it.second }  // Lowest points first
+                    .thenBy { it.first.cardCount }                  // Fewer cards first
+                    .thenBy { it.third }                            // Earlier index first
+            )
+            .first()
+            .first
+    }
+
+    /**
+     * Handle turn timeout - auto-draw 1 card and advance turn.
+     *
+     * @param state Current game state
+     * @return Updated game state with card drawn and turn advanced
+     */
+    fun handleTurnTimeout(state: GameState): GameState {
+        if (state.gamePhase != GamePhase.PLAYING) return state
+
+        // Draw 1 card for current player
+        var newState = drawCard(state, 1)
+
+        // Advance to next player
+        newState = advanceTurn(newState.copy(turnPhase = TurnPhase.TURN_ENDED))
+
+        return newState
+    }
+
+    /**
+     * Handle round timeout (sudden death expired).
+     * Determines winner by lowest hand points and transitions to RoundOver.
+     *
+     * @param state Current game state
+     * @return Updated game state in RoundOver phase
+     */
+    fun handleRoundTimeout(state: GameState): GameState {
+        if (state.gamePhase != GamePhase.PLAYING) return state
+
+        // Determine winner by lowest hand points
+        val timeoutWinner = determineTimeoutWinner(state.players)
+
+        // Calculate points from all other players' hands
+        val roundPoints = calculateRoundPoints(state.players, timeoutWinner.id)
+
+        // Update winner's score
+        val winnerWithPoints = timeoutWinner.addScore(roundPoints)
+        var newState = state.updatePlayer(winnerWithPoints)
+
+        // Determine if match is over (final round)
+        val isFinalRound = newState.currentRound >= GameState.TOTAL_ROUNDS
+
+        return newState.copy(
+            winner = winnerWithPoints,
+            roundWinnerId = winnerWithPoints.id,
+            roundPoints = roundPoints,
+            roundEndReason = RoundEndReason.TIMEOUT,
+            gamePhase = if (isFinalRound) GamePhase.MATCH_OVER else GamePhase.ROUND_OVER
+        )
+    }
+
+    /**
      * Start a new game with the given players.
      *
      * @param players List of players (2-4 players supported)
@@ -134,6 +208,7 @@ object GameEngine {
                 winner = winnerWithPoints,
                 roundWinnerId = winnerWithPoints.id,
                 roundPoints = roundPoints,
+                roundEndReason = RoundEndReason.NORMAL_WIN,
                 gamePhase = if (isFinalRound) GamePhase.MATCH_OVER else GamePhase.ROUND_OVER
             )
         }
@@ -259,7 +334,8 @@ object GameEngine {
         return state.copy(
             currentPlayerIndex = nextIndex,
             turnPhase = TurnPhase.PLAY_OR_DRAW,
-            lastCardTimer = null
+            lastCardTimer = null,
+            turnSecondsRemaining = GameState.DEFAULT_TURN_SECONDS
         )
     }
 
@@ -401,7 +477,13 @@ object GameEngine {
             currentRound = state.currentRound + 1,
             gamePhase = GamePhase.PLAYING,
             roundWinnerId = null,
-            roundPoints = 0
+            roundPoints = 0,
+            roundEndReason = RoundEndReason.NORMAL_WIN,
+            // Reset all timers
+            turnSecondsRemaining = GameState.DEFAULT_TURN_SECONDS,
+            roundSecondsElapsed = 0,
+            suddenDeathActive = false,
+            suddenDeathSecondsRemaining = GameState.SUDDEN_DEATH_SECONDS
         )
     }
 

@@ -33,6 +33,14 @@ enum class GamePhase {
 }
 
 /**
+ * Represents how the round ended.
+ */
+enum class RoundEndReason {
+    NORMAL_WIN,      // A player played their last card
+    TIMEOUT          // Sudden death timer expired
+}
+
+/**
  * Represents the complete game state.
  */
 data class GameState(
@@ -51,10 +59,19 @@ data class GameState(
     val currentRound: Int = 1,
     val gamePhase: GamePhase = GamePhase.PLAYING,
     val roundWinnerId: String? = null,
-    val roundPoints: Int = 0
+    val roundPoints: Int = 0,
+    val roundEndReason: RoundEndReason = RoundEndReason.NORMAL_WIN,
+    // Timer fields
+    val turnSecondsRemaining: Int = DEFAULT_TURN_SECONDS,
+    val roundSecondsElapsed: Int = 0,
+    val suddenDeathActive: Boolean = false,
+    val suddenDeathSecondsRemaining: Int = SUDDEN_DEATH_SECONDS
 ) {
     companion object {
         const val TOTAL_ROUNDS = 10
+        const val DEFAULT_TURN_SECONDS = 15
+        const val ROUND_TIME_LIMIT_SECONDS = 300  // 5 minutes
+        const val SUDDEN_DEATH_SECONDS = 60       // 1 minute
     }
     /**
      * Get the current player.
@@ -103,6 +120,22 @@ data class GameState(
      */
     val matchWinner: Player?
         get() = if (isMatchOver) players.maxByOrNull { it.totalScore } else null
+
+    /**
+     * Check if sudden death should be active (round time exceeded limit).
+     */
+    val shouldActivateSuddenDeath: Boolean
+        get() = !suddenDeathActive && roundSecondsElapsed >= ROUND_TIME_LIMIT_SECONDS
+
+    /**
+     * Format round elapsed time as mm:ss.
+     */
+    val roundTimeFormatted: String
+        get() {
+            val minutes = roundSecondsElapsed / 60
+            val seconds = roundSecondsElapsed % 60
+            return "%d:%02d".format(minutes, seconds)
+        }
 
     /**
      * Get the index of the next player.

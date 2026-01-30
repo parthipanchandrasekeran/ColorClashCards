@@ -846,4 +846,281 @@ class GameEngineTest {
 
         assertNull(state.matchWinner)
     }
+
+    // ==================== Timer Tests ====================
+
+    @Test
+    fun `turn timeout triggers auto-draw and advances turn`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.BLUE, 7)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            gamePhase = GamePhase.PLAYING,
+            turnSecondsRemaining = 0
+        )
+
+        val newState = GameEngine.handleTurnTimeout(state)
+
+        // Player 1 should have drawn a card (now 2 cards)
+        val player1After = newState.players.find { it.id == "p1" }
+        assertEquals(2, player1After?.cardCount)
+
+        // Turn should have advanced to player 2
+        assertEquals(1, newState.currentPlayerIndex)
+        assertEquals("p2", newState.currentPlayer.id)
+
+        // Turn timer should be reset
+        assertEquals(GameState.DEFAULT_TURN_SECONDS, newState.turnSecondsRemaining)
+    }
+
+    @Test
+    fun `sudden death activates after 300 seconds`() {
+        val state = GameState(
+            players = listOf(Player(name = "P1"), Player(name = "P2")),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            gamePhase = GamePhase.PLAYING,
+            roundSecondsElapsed = 299,
+            suddenDeathActive = false
+        )
+
+        assertFalse(state.shouldActivateSuddenDeath)
+
+        val stateAt300 = state.copy(roundSecondsElapsed = 300)
+        assertTrue(stateAt300.shouldActivateSuddenDeath)
+
+        val stateAt301 = state.copy(roundSecondsElapsed = 301)
+        assertTrue(stateAt301.shouldActivateSuddenDeath)
+    }
+
+    @Test
+    fun `sudden death does not reactivate if already active`() {
+        val state = GameState(
+            players = listOf(Player(name = "P1"), Player(name = "P2")),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            gamePhase = GamePhase.PLAYING,
+            roundSecondsElapsed = 350,
+            suddenDeathActive = true,  // Already active
+            suddenDeathSecondsRemaining = 10
+        )
+
+        assertFalse(state.shouldActivateSuddenDeath)
+    }
+
+    @Test
+    fun `timeout winner is player with lowest hand points`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.RED, 9),   // 9 points
+            Card.number(CardColor.BLUE, 8)   // 8 points = 17 total
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.GREEN, 2)  // 2 points
+        ))
+        val player3 = Player(id = "p3", name = "Player 3", hand = listOf(
+            Card.number(CardColor.YELLOW, 5),  // 5 points
+            Card.skip(CardColor.RED)           // 20 points = 25 total
+        ))
+
+        val winner = GameEngine.determineTimeoutWinner(listOf(player1, player2, player3))
+
+        assertEquals("p2", winner.id)  // Player 2 has lowest points (2)
+    }
+
+    @Test
+    fun `timeout winner tie-breaker 1 is fewer cards`() {
+        // Both have 20 points, but player1 has fewer cards
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.skip(CardColor.RED)           // 20 points, 1 card
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.GREEN, 5),   // 5 points
+            Card.number(CardColor.BLUE, 5),    // 5 points
+            Card.number(CardColor.RED, 5),     // 5 points
+            Card.number(CardColor.YELLOW, 5)   // 5 points = 20 total, 4 cards
+        ))
+
+        val winner = GameEngine.determineTimeoutWinner(listOf(player1, player2))
+
+        assertEquals("p1", winner.id)  // Player 1 has fewer cards
+    }
+
+    @Test
+    fun `timeout winner tie-breaker 2 is earlier player order`() {
+        // Both have same points and same card count
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.RED, 5)      // 5 points, 1 card
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.BLUE, 5)     // 5 points, 1 card
+        ))
+
+        val winner = GameEngine.determineTimeoutWinner(listOf(player1, player2))
+
+        assertEquals("p1", winner.id)  // Player 1 is earlier in order
+    }
+
+    @Test
+    fun `round timeout calculates points and moves to RoundOver`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 50, hand = listOf(
+            Card.number(CardColor.RED, 3)      // 3 points (lowest)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 30, hand = listOf(
+            Card.number(CardColor.BLUE, 9),    // 9 points
+            Card.skip(CardColor.GREEN)         // 20 points = 29 total
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            gamePhase = GamePhase.PLAYING,
+            currentRound = 5,
+            suddenDeathActive = true,
+            suddenDeathSecondsRemaining = 0
+        )
+
+        val newState = GameEngine.handleRoundTimeout(state)
+
+        // Player 1 should win (lowest hand points)
+        assertEquals("p1", newState.roundWinnerId)
+
+        // Round points should be sum of other players' hands (29)
+        assertEquals(29, newState.roundPoints)
+
+        // Winner's score should increase: 50 + 29 = 79
+        val winner = newState.players.find { it.id == "p1" }
+        assertEquals(79, winner?.totalScore)
+
+        // Round end reason should be timeout
+        assertEquals(RoundEndReason.TIMEOUT, newState.roundEndReason)
+
+        // Phase should be RoundOver
+        assertEquals(GamePhase.ROUND_OVER, newState.gamePhase)
+    }
+
+    @Test
+    fun `round timeout on final round moves to MatchOver`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.RED, 1)  // 1 point (lowest)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.BLUE, 9)  // 9 points
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            gamePhase = GamePhase.PLAYING,
+            currentRound = 10,  // Final round
+            suddenDeathActive = true,
+            suddenDeathSecondsRemaining = 0
+        )
+
+        val newState = GameEngine.handleRoundTimeout(state)
+
+        assertEquals(GamePhase.MATCH_OVER, newState.gamePhase)
+        assertEquals(RoundEndReason.TIMEOUT, newState.roundEndReason)
+    }
+
+    @Test
+    fun `startNextRound resets all timers`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 50)
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 30)
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 3,
+            gamePhase = GamePhase.ROUND_OVER,
+            roundWinnerId = "p1",
+            roundPoints = 20,
+            // Timer state from previous round
+            turnSecondsRemaining = 5,
+            roundSecondsElapsed = 250,
+            suddenDeathActive = true,
+            suddenDeathSecondsRemaining = 30
+        )
+
+        val newState = GameEngine.startNextRound(state)
+
+        // All timers should be reset
+        assertEquals(GameState.DEFAULT_TURN_SECONDS, newState.turnSecondsRemaining)
+        assertEquals(0, newState.roundSecondsElapsed)
+        assertFalse(newState.suddenDeathActive)
+        assertEquals(GameState.SUDDEN_DEATH_SECONDS, newState.suddenDeathSecondsRemaining)
+    }
+
+    @Test
+    fun `advanceTurn resets turn timer`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.BLUE, 7)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.TURN_ENDED,
+            turnSecondsRemaining = 3  // Low timer
+        )
+
+        val newState = GameEngine.advanceTurn(state)
+
+        assertEquals(GameState.DEFAULT_TURN_SECONDS, newState.turnSecondsRemaining)
+        assertEquals(1, newState.currentPlayerIndex)
+    }
+
+    @Test
+    fun `timer constants have correct values`() {
+        assertEquals(15, GameState.DEFAULT_TURN_SECONDS)
+        assertEquals(300, GameState.ROUND_TIME_LIMIT_SECONDS)
+        assertEquals(60, GameState.SUDDEN_DEATH_SECONDS)
+    }
+
+    @Test
+    fun `roundTimeFormatted returns correct mm ss format`() {
+        val state0 = GameState(
+            players = listOf(Player(name = "P1"), Player(name = "P2")),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            roundSecondsElapsed = 0
+        )
+        assertEquals("0:00", state0.roundTimeFormatted)
+
+        val state65 = state0.copy(roundSecondsElapsed = 65)
+        assertEquals("1:05", state65.roundTimeFormatted)
+
+        val state300 = state0.copy(roundSecondsElapsed = 300)
+        assertEquals("5:00", state300.roundTimeFormatted)
+    }
 }

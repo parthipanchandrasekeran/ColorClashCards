@@ -71,6 +71,7 @@ import com.parthipan.colorclashcards.game.model.CardType
 import com.parthipan.colorclashcards.game.model.GameState
 import com.parthipan.colorclashcards.game.model.Player
 import com.parthipan.colorclashcards.game.model.PlayDirection
+import com.parthipan.colorclashcards.game.model.RoundEndReason
 import com.parthipan.colorclashcards.game.model.TurnPhase
 import com.parthipan.colorclashcards.ui.components.GameCardView
 import com.parthipan.colorclashcards.ui.theme.CardBlue
@@ -126,8 +127,27 @@ fun GameScreen(
                     }
                 },
                 actions = {
-                    // Direction indicator
                     uiState.gameState?.let { state ->
+                        // Round timer
+                        Box(
+                            modifier = Modifier
+                                .background(
+                                    color = Color.Black.copy(alpha = 0.3f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = state.roundTimeFormatted,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Direction indicator
                         val rotation by animateFloatAsState(
                             targetValue = if (state.direction == PlayDirection.CLOCKWISE) 0f else 180f,
                             label = "direction"
@@ -184,11 +204,20 @@ fun GameScreen(
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                // Current turn indicator
+                                // Sudden death warning
+                                if (gameState.suddenDeathActive) {
+                                    SuddenDeathWarning(
+                                        secondsRemaining = gameState.suddenDeathSecondsRemaining
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+
+                                // Current turn indicator with timer
                                 CurrentTurnIndicator(
                                     playerName = gameState.currentPlayer.name,
                                     isHumanTurn = viewModel.isHumanTurn(),
-                                    isProcessing = uiState.isProcessingBotTurn
+                                    isProcessing = uiState.isProcessingBotTurn,
+                                    turnSecondsRemaining = if (viewModel.isHumanTurn()) gameState.turnSecondsRemaining else null
                                 )
 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -338,6 +367,7 @@ fun GameScreen(
                         currentRound = state.currentRound,
                         roundWinner = state.roundWinner,
                         roundPoints = state.roundPoints,
+                        roundEndReason = state.roundEndReason,
                         players = state.players,
                         humanPlayerId = viewModel.getHumanPlayer()?.id ?: "",
                         onStartNextRound = { viewModel.startNextRound() },
@@ -481,8 +511,16 @@ private fun PlayerInfoCard(
 private fun CurrentTurnIndicator(
     playerName: String,
     isHumanTurn: Boolean,
-    isProcessing: Boolean
+    isProcessing: Boolean,
+    turnSecondsRemaining: Int? = null
 ) {
+    val isLowTime = turnSecondsRemaining != null && turnSecondsRemaining <= 5
+    val glowColor = when {
+        isLowTime -> CardRed
+        isHumanTurn -> CardGreen
+        else -> Color.Black
+    }
+
     Box(
         modifier = Modifier
             .then(
@@ -492,8 +530,8 @@ private fun CurrentTurnIndicator(
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    CardGreen.copy(alpha = 0.4f),
-                                    CardGreen.copy(alpha = 0.1f),
+                                    glowColor.copy(alpha = 0.4f),
+                                    glowColor.copy(alpha = 0.1f),
                                     Color.Transparent
                                 ),
                                 radius = size.maxDimension
@@ -505,14 +543,20 @@ private fun CurrentTurnIndicator(
             .shadow(
                 elevation = if (isHumanTurn) 12.dp else 4.dp,
                 shape = RoundedCornerShape(24.dp),
-                ambientColor = if (isHumanTurn) CardGreen else Color.Black,
-                spotColor = if (isHumanTurn) CardGreen else Color.Black
+                ambientColor = glowColor,
+                spotColor = glowColor
             )
             .background(
                 brush = if (isHumanTurn) {
-                    Brush.linearGradient(
-                        colors = listOf(CardGreen, CardGreen.copy(alpha = 0.85f))
-                    )
+                    if (isLowTime) {
+                        Brush.linearGradient(
+                            colors = listOf(CardRed, CardRed.copy(alpha = 0.85f))
+                        )
+                    } else {
+                        Brush.linearGradient(
+                            colors = listOf(CardGreen, CardGreen.copy(alpha = 0.85f))
+                        )
+                    }
                 } else {
                     Brush.linearGradient(
                         colors = listOf(Color(0xFF2A2A2A), Color(0xFF1A1A1A))
@@ -523,7 +567,7 @@ private fun CurrentTurnIndicator(
             .border(
                 width = 2.dp,
                 brush = if (isHumanTurn) {
-                    Brush.linearGradient(listOf(Color.White.copy(alpha = 0.6f), CardGreen))
+                    Brush.linearGradient(listOf(Color.White.copy(alpha = 0.6f), glowColor))
                 } else {
                     Brush.linearGradient(listOf(Color.White.copy(alpha = 0.2f), Color.White.copy(alpha = 0.1f)))
                 },
@@ -550,6 +594,78 @@ private fun CurrentTurnIndicator(
                 color = Color.White,
                 letterSpacing = if (isHumanTurn) 1.sp else 0.sp
             )
+            // Turn timer for human player
+            if (turnSecondsRemaining != null) {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = if (isLowTime) Color.White else Color.Black.copy(alpha = 0.3f),
+                            shape = CircleShape
+                        )
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "${turnSecondsRemaining}s",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isLowTime) CardRed else Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SuddenDeathWarning(
+    secondsRemaining: Int
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(CardRed, CardRed.copy(alpha = 0.8f))
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .border(
+                width = 2.dp,
+                brush = Brush.linearGradient(
+                    colors = listOf(Color.White, CardYellow, Color.White)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "FINAL MINUTE",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                letterSpacing = 2.sp
+            )
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = Color.White,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "${secondsRemaining}s",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = CardRed
+                )
+            }
         }
     }
 }
@@ -984,6 +1100,7 @@ private fun RoundSummaryDialog(
     currentRound: Int,
     roundWinner: Player?,
     roundPoints: Int,
+    roundEndReason: RoundEndReason,
     players: List<Player>,
     humanPlayerId: String,
     onStartNextRound: () -> Unit,
@@ -992,18 +1109,31 @@ private fun RoundSummaryDialog(
     val isHumanWinner = roundWinner?.id == humanPlayerId
     val winnerDisplayName = if (isHumanWinner) "You" else roundWinner?.name ?: "Unknown"
     val isFinalRound = currentRound >= GameState.TOTAL_ROUNDS
+    val isTimeout = roundEndReason == RoundEndReason.TIMEOUT
 
     AlertDialog(
         onDismissRequest = {},
         title = {
-            Text(
-                text = "Round $currentRound Complete",
-                fontWeight = FontWeight.Bold,
-                fontSize = 22.sp,
-                textAlign = TextAlign.Center,
-                color = if (isHumanWinner) CardGreen else CardBlue,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Round $currentRound Complete",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
+                    textAlign = TextAlign.Center,
+                    color = if (isHumanWinner) CardGreen else CardBlue
+                )
+                if (isTimeout) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Time Expired",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = CardRed
+                    )
+                }
+            }
         },
         text = {
             Column(
@@ -1025,7 +1155,11 @@ private fun RoundSummaryDialog(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "$winnerDisplayName won this round!",
+                            text = if (isTimeout) {
+                                "$winnerDisplayName wins by lowest hand!"
+                            } else {
+                                "$winnerDisplayName won this round!"
+                            },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (isHumanWinner) CardGreen else MaterialTheme.colorScheme.onSurface

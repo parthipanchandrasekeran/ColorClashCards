@@ -40,6 +40,7 @@ class GameViewModel : ViewModel() {
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
     private var botTurnJob: Job? = null
+    private var timerJob: Job? = null
     private var difficulty: String = "easy"
     private var humanPlayerId: String = ""
 
@@ -67,8 +68,125 @@ class GameViewModel : ViewModel() {
             isLoading = false
         )
 
+        // Start the game timer
+        startGameTimer()
+
         // If first player is a bot, start bot turn
         checkAndProcessBotTurn()
+    }
+
+    /**
+     * Start the main game timer loop.
+     * Ticks every second and handles:
+     * - Turn timer countdown (for human players)
+     * - Round elapsed time tracking
+     * - Sudden death activation and countdown
+     */
+    private fun startGameTimer() {
+        timerJob?.cancel()
+        timerJob = viewModelScope.launch {
+            while (true) {
+                delay(1000) // Tick every second
+
+                val state = _uiState.value.gameState ?: continue
+                if (state.gamePhase != GamePhase.PLAYING) continue
+
+                var newState = state
+
+                // Increment round elapsed time
+                newState = newState.copy(
+                    roundSecondsElapsed = newState.roundSecondsElapsed + 1
+                )
+
+                // Check for sudden death activation
+                if (newState.shouldActivateSuddenDeath) {
+                    newState = newState.copy(
+                        suddenDeathActive = true,
+                        suddenDeathSecondsRemaining = GameState.SUDDEN_DEATH_SECONDS
+                    )
+                    _uiState.value = _uiState.value.copy(
+                        gameState = newState,
+                        message = "Final minute! Time running out!"
+                    )
+                    continue
+                }
+
+                // Handle sudden death countdown
+                if (newState.suddenDeathActive) {
+                    val newSuddenDeathRemaining = newState.suddenDeathSecondsRemaining - 1
+                    if (newSuddenDeathRemaining <= 0) {
+                        // Round timeout - determine winner by lowest hand points
+                        handleRoundTimeout()
+                        continue
+                    }
+                    newState = newState.copy(
+                        suddenDeathSecondsRemaining = newSuddenDeathRemaining
+                    )
+                }
+
+                // Only decrement turn timer for human players (bots ignore timer)
+                val isHumanTurn = newState.currentPlayer.id == humanPlayerId &&
+                                  !_uiState.value.isProcessingBotTurn
+
+                if (isHumanTurn) {
+                    val newTurnRemaining = newState.turnSecondsRemaining - 1
+                    if (newTurnRemaining <= 0) {
+                        // Turn timeout - auto-draw and advance turn
+                        handleTurnTimeout()
+                        continue
+                    }
+                    newState = newState.copy(
+                        turnSecondsRemaining = newTurnRemaining
+                    )
+                }
+
+                _uiState.value = _uiState.value.copy(gameState = newState)
+            }
+        }
+    }
+
+    /**
+     * Handle turn timeout - auto-draw 1 card and advance turn.
+     */
+    private fun handleTurnTimeout() {
+        val state = _uiState.value.gameState ?: return
+        if (state.gamePhase != GamePhase.PLAYING) return
+
+        val newState = GameEngine.handleTurnTimeout(state)
+
+        _uiState.value = _uiState.value.copy(
+            gameState = newState,
+            message = "Time's up! Drew a card.",
+            lastDrawnCard = null,
+            canPlayDrawnCard = false
+        )
+
+        // Clear message and check for bot turn
+        viewModelScope.launch {
+            delay(1500)
+            if (_uiState.value.message == "Time's up! Drew a card.") {
+                _uiState.value = _uiState.value.copy(message = null)
+            }
+            checkAndProcessBotTurn()
+        }
+    }
+
+    /**
+     * Handle round timeout (sudden death expired).
+     */
+    private fun handleRoundTimeout() {
+        val state = _uiState.value.gameState ?: return
+        if (state.gamePhase != GamePhase.PLAYING) return
+
+        val newState = GameEngine.handleRoundTimeout(state)
+
+        _uiState.value = _uiState.value.copy(
+            gameState = newState,
+            showRoundSummary = newState.isRoundOver,
+            showFinalResults = newState.isMatchOver,
+            winnerName = newState.winner?.name,
+            message = null
+        )
     }
 
     /**
@@ -480,6 +598,9 @@ class GameViewModel : ViewModel() {
             canPlayDrawnCard = false
         )
 
+        // Restart the game timer
+        startGameTimer()
+
         // If first player is a bot, start bot turn
         checkAndProcessBotTurn()
     }
@@ -501,6 +622,9 @@ class GameViewModel : ViewModel() {
             lastDrawnCard = null,
             canPlayDrawnCard = false
         )
+
+        // Restart the game timer
+        startGameTimer()
 
         // If first player is a bot, start bot turn
         checkAndProcessBotTurn()
@@ -526,5 +650,6 @@ class GameViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         botTurnJob?.cancel()
+        timerJob?.cancel()
     }
 }

@@ -70,6 +70,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parthipan.colorclashcards.game.model.Card
 import com.parthipan.colorclashcards.game.model.CardColor
 import com.parthipan.colorclashcards.game.model.CardType
+import com.parthipan.colorclashcards.game.model.GamePhase
 import com.parthipan.colorclashcards.game.model.GameState
 import com.parthipan.colorclashcards.game.model.Player
 import com.parthipan.colorclashcards.game.model.PlayDirection
@@ -100,12 +101,26 @@ fun GameScreen(
         }
     }
 
-    // Cache derived values to prevent recomputation
-    val humanPlayer by remember { derivedStateOf { viewModel.getHumanPlayer() } }
-    val humanPlayerId = humanPlayer?.id ?: ""
-    val isHumanTurn by remember { derivedStateOf { viewModel.isHumanTurn() } }
-    val playableCards by remember { derivedStateOf { viewModel.getPlayableCards() } }
-    val canCallLastCard by remember { derivedStateOf { viewModel.canCallLastCard() } }
+    // Get humanPlayerId from ViewModel (stable after game starts)
+    val humanPlayerId = viewModel.humanPlayerId
+
+    // Derive values directly from the collected uiState (simple approach, recomputed on each render)
+    val gameState = uiState.gameState
+    val humanPlayer = gameState?.getPlayer(humanPlayerId)
+
+    val isHumanTurn = gameState != null &&
+        gameState.gamePhase == GamePhase.PLAYING &&
+        gameState.currentPlayer.id == humanPlayerId &&
+        !uiState.isProcessingBotTurn
+
+    val playableCards = if (gameState != null && humanPlayer != null) {
+        val topCard = gameState.topCard
+        if (topCard != null) {
+            humanPlayer.hand.filter { it.canPlayOn(topCard, gameState.currentColor) }
+        } else emptyList()
+    } else emptyList()
+
+    val canCallLastCard = humanPlayer?.needsLastCardCall ?: false
 
     val topBarColor = if (mode == "offline") CardGreen else CardBlue
 

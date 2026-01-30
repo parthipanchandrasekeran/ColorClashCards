@@ -1481,4 +1481,181 @@ class GameEngineTest {
         // Should return false because we're not in DREW_CARD phase
         assertFalse(GameEngine.canPlayDrawnCard(state))
     }
+
+    // ==================== Round Initialization Tests ====================
+
+    @Test
+    fun `startGame deals 7 cards to every player`() {
+        val players = listOf(
+            Player.human("Human"),
+            Player.bot("Bot 1"),
+            Player.bot("Bot 2")
+        )
+
+        val state = GameEngine.startGame(players)
+
+        // Every player should have exactly 7 cards
+        state.players.forEach { player ->
+            assertEquals(7, player.cardCount)
+        }
+    }
+
+    @Test
+    fun `startGame deals cards to bots with matching player IDs`() {
+        val humanPlayer = Player.human("Human")
+        val bot1 = Player.bot("Bot 1")
+        val bot2 = Player.bot("Bot 2")
+        val players = listOf(humanPlayer, bot1, bot2)
+
+        val state = GameEngine.startGame(players)
+
+        // Each player in state should have same ID as original and have cards
+        assertEquals(humanPlayer.id, state.players[0].id)
+        assertEquals(bot1.id, state.players[1].id)
+        assertEquals(bot2.id, state.players[2].id)
+
+        // All players should have hands
+        assertTrue(state.players[0].hand.isNotEmpty())
+        assertTrue(state.players[1].hand.isNotEmpty())
+        assertTrue(state.players[2].hand.isNotEmpty())
+    }
+
+    @Test
+    fun `startNextRound deals 7 cards to every player and preserves scores`() {
+        // Set up initial state with scores
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 50, hand = emptyList())
+        val player2 = Player(id = "p2", name = "Bot 1", isBot = true, totalScore = 30, hand = listOf(
+            Card.number(CardColor.BLUE, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 3,
+            gamePhase = GamePhase.ROUND_OVER,
+            roundWinnerId = "p1",
+            roundPoints = 20
+        )
+
+        val newState = GameEngine.startNextRound(state)
+
+        // Every player should have exactly 7 cards
+        newState.players.forEach { player ->
+            assertEquals(7, player.cardCount)
+        }
+
+        // Scores should be preserved
+        val newPlayer1 = newState.players.find { it.id == "p1" }
+        val newPlayer2 = newState.players.find { it.id == "p2" }
+        assertEquals(50, newPlayer1?.totalScore)
+        assertEquals(30, newPlayer2?.totalScore)
+
+        // Round should be incremented
+        assertEquals(4, newState.currentRound)
+    }
+
+    @Test
+    fun `startGame initializes starting card as a number card`() {
+        val players = listOf(
+            Player.human("Human"),
+            Player.bot("Bot 1")
+        )
+
+        // Run multiple times to verify starting card is always a number
+        repeat(10) {
+            val state = GameEngine.startGame(players)
+            assertEquals(CardType.NUMBER, state.topCard?.type)
+        }
+    }
+
+    @Test
+    fun `startGame sets currentColor from starting card`() {
+        val players = listOf(
+            Player.human("Human"),
+            Player.bot("Bot 1")
+        )
+
+        val state = GameEngine.startGame(players)
+
+        // Current color should match the starting card's color
+        assertEquals(state.topCard?.color, state.currentColor)
+    }
+
+    @Test
+    fun `startGame sets first player as current player`() {
+        val players = listOf(
+            Player.human("Human"),
+            Player.bot("Bot 1")
+        )
+
+        val state = GameEngine.startGame(players)
+
+        // First player should be at index 0
+        assertEquals(0, state.currentPlayerIndex)
+        assertEquals("Human", state.currentPlayer.name)
+    }
+
+    @Test
+    fun `startGame sets phase to PLAYING and turnPhase to PLAY_OR_DRAW`() {
+        val players = listOf(
+            Player.human("Human"),
+            Player.bot("Bot 1")
+        )
+
+        val state = GameEngine.startGame(players)
+
+        assertEquals(GamePhase.PLAYING, state.gamePhase)
+        assertEquals(TurnPhase.PLAY_OR_DRAW, state.turnPhase)
+    }
+
+    @Test
+    fun `startNextRound resets bot hands and deals new cards`() {
+        // Set up bots with different remaining cards
+        val bot1 = Player(id = "b1", name = "Bot 1", isBot = true, totalScore = 20, hand = listOf(
+            Card.number(CardColor.RED, 1),
+            Card.number(CardColor.RED, 2)
+        ))
+        val bot2 = Player(id = "b2", name = "Bot 2", isBot = true, totalScore = 40, hand = listOf(
+            Card.wildColor(),
+            Card.skip(CardColor.BLUE),
+            Card.number(CardColor.GREEN, 9)
+        ))
+        val human = Player(id = "h1", name = "Human", totalScore = 60, hand = emptyList())
+
+        val state = GameState(
+            players = listOf(human, bot1, bot2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            currentRound = 5,
+            gamePhase = GamePhase.ROUND_OVER,
+            roundWinnerId = "h1",
+            roundPoints = 50
+        )
+
+        val newState = GameEngine.startNextRound(state)
+
+        // All players including bots should have exactly 7 cards
+        val newBot1 = newState.players.find { it.id == "b1" }
+        val newBot2 = newState.players.find { it.id == "b2" }
+        val newHuman = newState.players.find { it.id == "h1" }
+
+        assertEquals(7, newBot1?.cardCount)
+        assertEquals(7, newBot2?.cardCount)
+        assertEquals(7, newHuman?.cardCount)
+
+        // Bot IDs should match
+        assertEquals("b1", newBot1?.id)
+        assertEquals("b2", newBot2?.id)
+        assertEquals("h1", newHuman?.id)
+
+        // Scores preserved
+        assertEquals(20, newBot1?.totalScore)
+        assertEquals(40, newBot2?.totalScore)
+        assertEquals(60, newHuman?.totalScore)
+    }
 }

@@ -42,7 +42,10 @@ class GameViewModel : ViewModel() {
     private var botTurnJob: Job? = null
     private var timerJob: Job? = null
     private var difficulty: String = "easy"
-    private var humanPlayerId: String = ""
+
+    // Expose humanPlayerId so UI can derive player data from collected state
+    var humanPlayerId: String = ""
+        private set
 
     /**
      * Start a new offline game.

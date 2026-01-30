@@ -73,6 +73,8 @@ private val CardYellow = Color(0xFFFFD600)
  * @param faceDown Whether to show the card back
  * @param isPlayable Whether this card can be played (shows glow effect)
  * @param onClick Optional click handler (null = not clickable)
+ * @param fillParentSize If true, skips aspectRatio and fills parent (use when parent has correct size)
+ * @param scaleFactor Scale factor for text sizing (1.0 = full size, used for hand cards)
  */
 @Composable
 fun GameCardView(
@@ -80,7 +82,9 @@ fun GameCardView(
     modifier: Modifier = Modifier,
     faceDown: Boolean = false,
     isPlayable: Boolean = false,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    fillParentSize: Boolean = false,
+    scaleFactor: Float = 1f
 ) {
     val baseColor = card.color.toCardColor()
     val isWild = card.type.isWild()
@@ -88,7 +92,7 @@ fun GameCardView(
 
     // Press animation state
     var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
+    val pressScale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 400f),
         label = "cardScale"
@@ -98,8 +102,11 @@ fun GameCardView(
 
     Card(
         modifier = modifier
-            .aspectRatio(2.5f / 3.5f) // Standard playing card ratio
-            .scale(scale)
+            .then(
+                if (fillParentSize) Modifier.fillMaxSize()
+                else Modifier.aspectRatio(2.5f / 3.5f)
+            )
+            .scale(pressScale)
             .shadow(
                 elevation = if (isPlayable) 12.dp else 4.dp,
                 shape = RoundedCornerShape(cornerRadius),
@@ -149,73 +156,96 @@ fun GameCardView(
                 textColor = textColor,
                 isWild = isWild,
                 cornerRadius = cornerRadius,
+                scaleFactor = scaleFactor,
                 modifier = Modifier.fillMaxSize()
             )
         }
     }
 }
 
+/**
+ * Data class to hold pre-computed stripe positions for card back pattern.
+ */
+private data class CardBackStripeData(
+    val stripeWidth: Float,
+    val stripePositions: List<Float>
+)
+
 @Composable
 private fun CardBack(
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 14.dp
 ) {
+    val shape = RoundedCornerShape(cornerRadius)
+    val stripeColor = Color(0xFF2A2A4A)
+
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(cornerRadius))
+            .clip(shape)
             .background(
-                Brush.linearGradient(
+                brush = Brush.linearGradient(
                     colors = listOf(
                         Color(0xFF1A1A2E),
                         Color(0xFF16213E),
                         Color(0xFF1A1A2E)
                     )
-                )
-            )
-            .drawBehind {
-                // Draw diagonal stripe pattern
-                val stripeWidth = 4.dp.toPx()
-                val gap = 8.dp.toPx()
-                var x = -this.size.height
-                while (x < this.size.width + this.size.height) {
-                    drawLine(
-                        color = Color(0xFF2A2A4A),
-                        start = Offset(x, 0f),
-                        end = Offset(x + this.size.height, this.size.height),
-                        strokeWidth = stripeWidth
-                    )
-                    x += stripeWidth + gap
-                }
-
-                // Draw border glow
-                drawRoundRect(
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            CardRed.copy(alpha = 0.3f),
-                            CardBlue.copy(alpha = 0.3f),
-                            CardGreen.copy(alpha = 0.3f),
-                            CardYellow.copy(alpha = 0.3f)
-                        )
-                    ),
-                    cornerRadius = CornerRadius(cornerRadius.toPx()),
-                    style = Stroke(width = 3.dp.toPx())
-                )
-            },
+                ),
+                shape = shape
+            ),
         contentAlignment = Alignment.Center
     ) {
-        // CC Logo
+        // Diagonal stripe pattern - drawn as Canvas filling the card
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(shape)
+        ) {
+            // Draw diagonal stripes using relative sizing
+            val stripeWidth = size.width * 0.04f  // 4% of width
+            val gap = size.width * 0.08f           // 8% of width
+            val step = stripeWidth + gap
+
+            // Draw stripes from bottom-left to top-right
+            var x = -size.height
+            while (x < size.width + size.height) {
+                drawLine(
+                    color = stripeColor,
+                    start = Offset(x, 0f),
+                    end = Offset(x + size.height, size.height),
+                    strokeWidth = stripeWidth
+                )
+                x += step
+            }
+
+            // Draw colored border
+            val borderWidth = size.width * 0.03f
+            drawRoundRect(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        CardRed.copy(alpha = 0.4f),
+                        CardBlue.copy(alpha = 0.4f),
+                        CardGreen.copy(alpha = 0.4f),
+                        CardYellow.copy(alpha = 0.4f)
+                    )
+                ),
+                cornerRadius = CornerRadius(cornerRadius.toPx()),
+                style = Stroke(width = borderWidth)
+            )
+        }
+
+        // CC Logo - centered
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black.copy(alpha = 0.4f))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .background(Color.Black.copy(alpha = 0.5f))
+                .padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
             Text(
                 text = "CC",
                 color = Color.White,
-                fontSize = 24.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Black,
                 fontStyle = FontStyle.Italic,
                 fontFamily = FontFamily.SansSerif,
@@ -223,10 +253,10 @@ private fun CardBack(
             )
             Text(
                 text = "CLASH",
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 8.sp,
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 7.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp
+                letterSpacing = 1.sp
             )
         }
     }
@@ -239,6 +269,7 @@ private fun CardFront(
     textColor: Color,
     isWild: Boolean,
     cornerRadius: Dp = 14.dp,
+    scaleFactor: Float = 1f,
     modifier: Modifier = Modifier
 ) {
     // Deterministic seed from card id for noise pattern
@@ -293,6 +324,7 @@ private fun CardFront(
         CornerLabel(
             card = card,
             textColor = textColor,
+            scaleFactor = scaleFactor,
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(top = 4.dp, start = 6.dp)
@@ -301,6 +333,7 @@ private fun CardFront(
         CornerLabel(
             card = card,
             textColor = textColor,
+            scaleFactor = scaleFactor,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(bottom = 4.dp, end = 6.dp)
@@ -313,6 +346,7 @@ private fun CardFront(
             baseColor = baseColor,
             textColor = textColor,
             isWild = isWild,
+            scaleFactor = scaleFactor,
             modifier = Modifier.align(Alignment.Center)
         )
     }
@@ -394,6 +428,7 @@ private fun DrawScope.drawFlashStripe(isWild: Boolean, baseColor: Color) {
 private fun CornerLabel(
     card: GameCard,
     textColor: Color,
+    scaleFactor: Float = 1f,
     modifier: Modifier = Modifier
 ) {
     val displayText = when (card.type) {
@@ -405,10 +440,13 @@ private fun CornerLabel(
         CardType.WILD_DRAW_FOUR -> "+4"
     }
 
+    // Scale font size but never below 10sp for readability
+    val scaledFontSize = (13f * scaleFactor).coerceAtLeast(10f).sp
+
     Text(
         text = displayText,
         color = textColor,
-        fontSize = 13.sp,
+        fontSize = scaledFontSize,
         fontWeight = FontWeight.Bold,
         modifier = modifier
     )
@@ -420,6 +458,7 @@ private fun CenterBadge(
     baseColor: Color,
     textColor: Color,
     isWild: Boolean,
+    scaleFactor: Float = 1f,
     modifier: Modifier = Modifier
 ) {
     val badgeCornerRadius = 12.dp
@@ -455,23 +494,26 @@ private fun CenterBadge(
             contentAlignment = Alignment.Center
         ) {
             when (card.type) {
-                CardType.NUMBER -> NumberContent(card.number ?: 0, if (isWild) Color.White else textColor)
+                CardType.NUMBER -> NumberContent(card.number ?: 0, if (isWild) Color.White else textColor, scaleFactor)
                 CardType.SKIP -> SkipIcon(if (isWild) Color.White else textColor)
                 CardType.REVERSE -> ReverseIcon(if (isWild) Color.White else textColor)
-                CardType.DRAW_TWO -> DrawTwoIcon(if (isWild) Color.White else textColor)
-                CardType.WILD_COLOR -> WildIcon()
-                CardType.WILD_DRAW_FOUR -> WildDrawFourIcon()
+                CardType.DRAW_TWO -> DrawTwoIcon(if (isWild) Color.White else textColor, scaleFactor)
+                CardType.WILD_COLOR -> WildIcon(scaleFactor)
+                CardType.WILD_DRAW_FOUR -> WildDrawFourIcon(scaleFactor)
             }
         }
     }
 }
 
 @Composable
-private fun NumberContent(number: Int, textColor: Color) {
+private fun NumberContent(number: Int, textColor: Color, scaleFactor: Float = 1f) {
+    // Scale font size but never below 16sp for center number readability
+    val scaledFontSize = (32f * scaleFactor).coerceAtLeast(16f).sp
+
     Text(
         text = number.toString(),
         color = textColor,
-        fontSize = 32.sp,
+        fontSize = scaledFontSize,
         fontWeight = FontWeight.ExtraBold,
         textAlign = TextAlign.Center
     )
@@ -537,7 +579,10 @@ private fun ReverseIcon(color: Color) {
 }
 
 @Composable
-private fun DrawTwoIcon(color: Color) {
+private fun DrawTwoIcon(color: Color, scaleFactor: Float = 1f) {
+    // Scale font size but never below 12sp
+    val scaledFontSize = (18f * scaleFactor).coerceAtLeast(12f).sp
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -560,30 +605,38 @@ private fun DrawTwoIcon(color: Color) {
                     .border(1.dp, color, RoundedCornerShape(3.dp))
             )
         }
-        Text(text = "+2", color = color, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+        Text(text = "+2", color = color, fontSize = scaledFontSize, fontWeight = FontWeight.ExtraBold)
     }
 }
 
 @Composable
-private fun WildIcon() {
-    val squareSize = 14.dp
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Box(Modifier.size(squareSize).clip(RoundedCornerShape(3.dp)).background(CardRed))
-            Box(Modifier.size(squareSize).clip(RoundedCornerShape(3.dp)).background(CardBlue))
+private fun WildIcon(scaleFactor: Float = 1f) {
+    // Scale square size but keep a minimum
+    val squareSize = (14f * scaleFactor).coerceAtLeast(8f).dp
+    val spacing = (2f * scaleFactor).coerceAtLeast(1f).dp
+    val cornerRadius = (3f * scaleFactor).coerceAtLeast(2f).dp
+
+    Column(verticalArrangement = Arrangement.spacedBy(spacing), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
+            Box(Modifier.size(squareSize).clip(RoundedCornerShape(cornerRadius)).background(CardRed))
+            Box(Modifier.size(squareSize).clip(RoundedCornerShape(cornerRadius)).background(CardBlue))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Box(Modifier.size(squareSize).clip(RoundedCornerShape(3.dp)).background(CardYellow))
-            Box(Modifier.size(squareSize).clip(RoundedCornerShape(3.dp)).background(CardGreen))
+        Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
+            Box(Modifier.size(squareSize).clip(RoundedCornerShape(cornerRadius)).background(CardYellow))
+            Box(Modifier.size(squareSize).clip(RoundedCornerShape(cornerRadius)).background(CardGreen))
         }
     }
 }
 
 @Composable
-private fun WildDrawFourIcon() {
+private fun WildDrawFourIcon(scaleFactor: Float = 1f) {
+    // Scale font size but never below 10sp
+    val scaledFontSize = (14f * scaleFactor).coerceAtLeast(10f).sp
+    val topPadding = (2f * scaleFactor).coerceAtLeast(1f).dp
+
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        WildIcon()
-        Text(text = "+4", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 2.dp))
+        WildIcon(scaleFactor)
+        Text(text = "+4", color = Color.White, fontSize = scaledFontSize, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = topPadding))
     }
 }
 

@@ -81,7 +81,13 @@ keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -sto
 
 Release key:
 ```bash
-keytool -list -v -keystore your-release-key.keystore -alias your-alias
+keytool -list -v -keystore keystore/release.keystore -alias colorclashcards -storepass YOUR_PASSWORD
+```
+
+**Current Release Fingerprints** (add these to Firebase Console):
+```
+SHA-1:   F5:48:46:35:66:B2:22:83:67:9C:7E:27:F5:43:36:A6:D3:CE:A1:EF
+SHA-256: 9D:AA:08:8A:49:63:C0:3B:E2:65:9D:BB:A1:C4:C7:70:69:34:29:66:E5:9C:BE:98:34:5A:91:26:7F:B0:F4:C8
 ```
 
 ## Building the App

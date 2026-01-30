@@ -70,9 +70,9 @@ data class GameState(
 ) {
     companion object {
         const val TOTAL_ROUNDS = 10
-        const val DEFAULT_TURN_SECONDS = 15
+        const val DEFAULT_TURN_SECONDS = 30       // 30 seconds per turn
         const val ROUND_TIME_LIMIT_SECONDS = 300  // 5 minutes
-        const val SUDDEN_DEATH_SECONDS = 60       // 1 minute
+        const val SUDDEN_DEATH_SECONDS = 60       // 1 minute (final minute)
     }
     /**
      * Get the current player.

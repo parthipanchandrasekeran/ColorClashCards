@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Feature Graphic - Color Clash Cards</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            width: 1024px;
+            height: 500px;
+            background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 50%, #1a472a 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            overflow: hidden;
+            position: relative;
+        }
+        .container {
+            display: flex;
+            align-items: center;
+            gap: 60px;
+        }
+        .text-section {
+            text-align: left;
+        }
+        .title {
+            font-size: 72px;
+            font-weight: 800;
+            color: white;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.4);
+            line-height: 1.1;
+        }
+        .title .clash {
+            color: #FFB300;
+        }
+        .tagline {
+            font-size: 28px;
+            color: rgba(255,255,255,0.9);
+            margin-top: 15px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .cards-section {
+            display: flex;
+            gap: -20px;
+            transform: rotate(-5deg);
+        }
+        .card {
+            width: 100px;
+            height: 140px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            box-shadow: 4px 4px 15px rgba(0,0,0,0.4);
+            position: relative;
+            border: 3px solid rgba(255,255,255,0.3);
+        }
+        .card-red { background: linear-gradient(145deg, #E53935, #c62828); margin-left: -15px; transform: rotate(-8deg); }
+        .card-blue { background: linear-gradient(145deg, #1E88E5, #1565c0); margin-left: -15px; transform: rotate(-3deg); z-index: 1; }
+        .card-green { background: linear-gradient(145deg, #43A047, #2e7d32); margin-left: -15px; transform: rotate(2deg); z-index: 2; }
+        .card-yellow { background: linear-gradient(145deg, #FFB300, #ff8f00); margin-left: -15px; transform: rotate(7deg); z-index: 3; }
+        .card-wild {
+            background: linear-gradient(145deg, #333, #555);
+            margin-left: -15px;
+            transform: rotate(12deg);
+            z-index: 4;
+            font-size: 24px;
+        }
+        .color-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 8px;
+            display: flex;
+        }
+        .color-bar div { flex: 1; }
+        .cb-red { background: #E53935; }
+        .cb-blue { background: #1E88E5; }
+        .cb-green { background: #43A047; }
+        .cb-yellow { background: #FFB300; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="text-section">
+            <div class="title">Color<br><span class="clash">Clash</span><br>Cards</div>
+            <div class="tagline">Match. Play. Win!</div>
+        </div>
+        <div class="cards-section">
+            <div class="card card-red">7</div>
+            <div class="card card-blue">3</div>
+            <div class="card card-green">5</div>
+            <div class="card card-yellow">9</div>
+            <div class="card card-wild">+4</div>
+        </div>
+    </div>
+    <div class="color-bar">
+        <div class="cb-red"></div>
+        <div class="cb-blue"></div>
+        <div class="cb-green"></div>
+        <div class="cb-yellow"></div>
+    </div>
+</body>
+</html>

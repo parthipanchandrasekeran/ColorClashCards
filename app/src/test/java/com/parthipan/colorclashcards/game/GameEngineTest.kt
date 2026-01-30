@@ -1100,7 +1100,7 @@ class GameEngineTest {
 
     @Test
     fun `timer constants have correct values`() {
-        assertEquals(15, GameState.DEFAULT_TURN_SECONDS)
+        assertEquals(30, GameState.DEFAULT_TURN_SECONDS)
         assertEquals(300, GameState.ROUND_TIME_LIMIT_SECONDS)
         assertEquals(60, GameState.SUDDEN_DEATH_SECONDS)
     }
@@ -1657,5 +1657,175 @@ class GameEngineTest {
         assertEquals(20, newBot1?.totalScore)
         assertEquals(40, newBot2?.totalScore)
         assertEquals(60, newHuman?.totalScore)
+    }
+
+    // ==================== Scoreboard Tests ====================
+
+    @Test
+    fun `scoreboard shows unchanged totals during active play`() {
+        // Initial scores set before round starts
+        val cardToPlay = Card.number(CardColor.RED, 5)
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 100, hand = listOf(
+            cardToPlay,
+            Card.number(CardColor.RED, 7)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 75, hand = listOf(
+            Card.number(CardColor.BLUE, 3)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        // Play a card (not ending round - player1 still has 1 card left)
+        val afterPlay = GameEngine.playCard(state, cardToPlay)
+
+        // Scores should NOT change during active play
+        assertNotNull(afterPlay)
+        val p1After = afterPlay!!.players.find { it.id == "p1" }
+        val p2After = afterPlay.players.find { it.id == "p2" }
+
+        assertEquals(100, p1After?.totalScore) // Unchanged
+        assertEquals(75, p2After?.totalScore)  // Unchanged
+    }
+
+    @Test
+    fun `scoreboard totals update only when round ends normally`() {
+        val lastCard = Card.number(CardColor.RED, 5)
+        // Player 1 wins by playing last card
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 50, hand = listOf(lastCard), hasCalledLastCard = true)
+        // Player 2's hand is worth 27 points (7 + 20)
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 30, hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.skip(CardColor.GREEN)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            currentRound = 1,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        // Play the winning card
+        val afterWin = GameEngine.playCard(state, lastCard)
+
+        assertNotNull(afterWin)
+        assertEquals(GamePhase.ROUND_OVER, afterWin!!.gamePhase)
+
+        // Winner's score should increase by opponent's hand value
+        val winner = afterWin.players.find { it.id == "p1" }
+        assertEquals(50 + 27, winner?.totalScore) // 50 + (7 + 20) = 77
+
+        // Loser's score unchanged
+        val loser = afterWin.players.find { it.id == "p2" }
+        assertEquals(30, loser?.totalScore) // Unchanged
+    }
+
+    @Test
+    fun `scoreboard totals update only when round ends by timeout`() {
+        // Player 1 has lowest hand (3 points) - wins
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 100, hand = listOf(
+            Card.number(CardColor.RED, 3)  // 3 points
+        ))
+        // Player 2 has 59 points in hand
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 80, hand = listOf(
+            Card.number(CardColor.BLUE, 9),  // 9 points
+            Card.wildColor()                 // 50 points
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.RED, 5)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            gamePhase = GamePhase.PLAYING,
+            currentRound = 5,
+            suddenDeathActive = true,
+            suddenDeathSecondsRemaining = 0
+        )
+
+        val afterTimeout = GameEngine.handleRoundTimeout(state)
+
+        assertEquals(GamePhase.ROUND_OVER, afterTimeout.gamePhase)
+        assertEquals("p1", afterTimeout.roundWinnerId)
+
+        // Winner gains loser's hand points (59)
+        val winner = afterTimeout.players.find { it.id == "p1" }
+        assertEquals(100 + 59, winner?.totalScore) // 100 + 59 = 159
+
+        // Loser's score unchanged
+        val loser = afterTimeout.players.find { it.id == "p2" }
+        assertEquals(80, loser?.totalScore)
+    }
+
+    @Test
+    fun `drawing a card does not affect totalScore`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 120, hand = listOf(
+            Card.number(CardColor.BLUE, 7)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 90, hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = listOf(Card.number(CardColor.YELLOW, 9)),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state)
+
+        // Scores must remain unchanged after drawing
+        val p1After = afterDraw.players.find { it.id == "p1" }
+        val p2After = afterDraw.players.find { it.id == "p2" }
+
+        assertEquals(120, p1After?.totalScore)
+        assertEquals(90, p2After?.totalScore)
+    }
+
+    @Test
+    fun `passing turn does not affect totalScore`() {
+        val player1 = Player(id = "p1", name = "Player 1", totalScore = 200, hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.number(CardColor.YELLOW, 9)  // Just drew this
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", totalScore = 150, hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = DeckBuilder.createShuffledDeck(),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.DREW_CARD,  // Already drew
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterPass = GameEngine.passTurn(state)
+
+        // Scores must remain unchanged
+        val p1After = afterPass.players.find { it.id == "p1" }
+        val p2After = afterPass.players.find { it.id == "p2" }
+
+        assertEquals(200, p1After?.totalScore)
+        assertEquals(150, p2After?.totalScore)
     }
 }

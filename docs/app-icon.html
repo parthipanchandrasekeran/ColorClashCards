@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>App Icon - Color Clash Cards</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            width: 512px;
+            height: 512px;
+            background: linear-gradient(145deg, #2d5a3d 0%, #1a472a 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+        .cards-container {
+            position: relative;
+            width: 320px;
+            height: 320px;
+        }
+        .card {
+            position: absolute;
+            width: 140px;
+            height: 196px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 72px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            box-shadow: 4px 4px 20px rgba(0,0,0,0.5);
+            border: 4px solid rgba(255,255,255,0.3);
+        }
+        .card-red {
+            background: linear-gradient(145deg, #E53935, #c62828);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-25deg) translateX(-60px);
+            z-index: 1;
+        }
+        .card-blue {
+            background: linear-gradient(145deg, #1E88E5, #1565c0);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-8deg) translateX(-20px);
+            z-index: 2;
+        }
+        .card-green {
+            background: linear-gradient(145deg, #43A047, #2e7d32);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(8deg) translateX(20px);
+            z-index: 3;
+        }
+        .card-yellow {
+            background: linear-gradient(145deg, #FFB300, #ff8f00);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(25deg) translateX(60px);
+            z-index: 4;
+        }
+        .cc-text {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 48px;
+            font-weight: 900;
+            color: white;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+            letter-spacing: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="cards-container">
+        <div class="card card-red">C</div>
+        <div class="card card-blue">C</div>
+        <div class="card card-green">C</div>
+        <div class="card card-yellow">C</div>
+    </div>
+</body>
+</html>

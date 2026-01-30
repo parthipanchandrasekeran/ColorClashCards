@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Safe zone is 66dp centered (21dp inset from each side) -->
+    <!-- Cards are positioned within the safe zone -->
+
+    <!-- Yellow card (back-left) -->
+    <group
+        android:pivotX="38"
+        android:pivotY="54"
+        android:rotation="-15">
+        <path
+            android:fillColor="#FFD93D"
+            android:pathData="M26,32 L50,32 Q54,32 54,36 L54,72 Q54,76 50,76 L26,76 Q22,76 22,72 L22,36 Q22,32 26,32 Z" />
+        <path
+            android:fillColor="#E6C235"
+            android:pathData="M26,32 L50,32 Q54,32 54,36 L54,72 Q54,76 50,76 L26,76 Q22,76 22,72 L22,36 Q22,32 26,32 Z"
+            android:strokeWidth="1.5"
+            android:strokeColor="#FFFFFF"
+            android:strokeAlpha="0.3" />
+    </group>
+
+    <!-- Green card (back-right) -->
+    <group
+        android:pivotX="70"
+        android:pivotY="54"
+        android:rotation="15">
+        <path
+            android:fillColor="#4CAF50"
+            android:pathData="M58,32 L82,32 Q86,32 86,36 L86,72 Q86,76 82,76 L58,76 Q54,76 54,72 L54,36 Q54,32 58,32 Z" />
+        <path
+            android:fillColor="#3D8B40"
+            android:pathData="M58,32 L82,32 Q86,32 86,36 L86,72 Q86,76 82,76 L58,76 Q54,76 54,72 L54,36 Q54,32 58,32 Z"
+            android:strokeWidth="1.5"
+            android:strokeColor="#FFFFFF"
+            android:strokeAlpha="0.3" />
+    </group>
+
+    <!-- Blue card (middle-left) -->
+    <group
+        android:pivotX="46"
+        android:pivotY="54"
+        android:rotation="-8">
+        <path
+            android:fillColor="#2196F3"
+            android:pathData="M34,30 L58,30 Q62,30 62,34 L62,74 Q62,78 58,78 L34,78 Q30,78 30,74 L30,34 Q30,30 34,30 Z" />
+        <path
+            android:fillColor="#1976D2"
+            android:pathData="M34,30 L58,30 Q62,30 62,34 L62,74 Q62,78 58,78 L34,78 Q30,78 30,74 L30,34 Q30,30 34,30 Z"
+            android:strokeWidth="1.5"
+            android:strokeColor="#FFFFFF"
+            android:strokeAlpha="0.3" />
+    </group>
+
+    <!-- Red card (front, center) -->
+    <path
+        android:fillColor="#F44336"
+        android:pathData="M42,28 L66,28 Q70,28 70,32 L70,76 Q70,80 66,80 L42,80 Q38,80 38,76 L38,32 Q38,28 42,28 Z" />
+    <path
+        android:fillColor="#D32F2F"
+        android:pathData="M42,28 L66,28 Q70,28 70,32 L70,76 Q70,80 66,80 L42,80 Q38,80 38,76 L38,32 Q38,28 42,28 Z"
+        android:strokeWidth="2"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.4" />
+
+    <!-- CC text on front card -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,48 C48,44 50,42 54,42 C56,42 57.5,43 58,44 L56,46 C55.5,45.5 55,45 54,45 C52,45 51,46.5 51,49 C51,51.5 52,53 54,53 C55,53 55.5,52.5 56,52 L58,54 C57.5,55 56,56 54,56 C50,56 48,54 48,50 C48,49.3 48,48.6 48,48 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M60,48 C60,44 62,42 66,42 C68,42 69.5,43 70,44 L68,46 C67.5,45.5 67,45 66,45 C64,45 63,46.5 63,49 C63,51.5 64,53 66,53 C67,53 67.5,52.5 68,52 L70,54 C69.5,55 68,56 66,56 C62,56 60,54 60,50 C60,49.3 60,48.6 60,48 Z" />
+
+    <!-- Small decorative element - clash spark -->
+    <path
+        android:fillColor="#FFD93D"
+        android:pathData="M54,62 L56,66 L54,64 L52,66 Z" />
+</vector>

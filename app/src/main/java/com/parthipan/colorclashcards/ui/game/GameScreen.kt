@@ -525,6 +525,15 @@ private fun GameTableArea(
     onKeepDrawnCard: () -> Unit,
     isLandscape: Boolean
 ) {
+    // Compute hasDrawnThisTurn: true if player has already drawn this turn
+    // (turnPhase is DREW_CARD or we're showing play/keep buttons)
+    val hasDrawnThisTurn = gameState.turnPhase == TurnPhase.DREW_CARD || uiState.canPlayDrawnCard
+
+    // canDraw: Can draw once per turn (even with playable cards)
+    // - Must be player's turn
+    // - Must be in PLAY_OR_DRAW phase (haven't drawn yet)
+    val canDraw = isHumanTurn && !hasDrawnThisTurn && gameState.turnPhase == TurnPhase.PLAY_OR_DRAW
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.padding(horizontal = if (isLandscape) 16.dp else 0.dp)
@@ -553,9 +562,10 @@ private fun GameTableArea(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Draw pile with stacked cards
+            // UNO rules: Can only draw if player has NO playable cards and hasn't drawn yet
             StackedDrawPile(
                 cardsRemaining = gameState.deck.size,
-                canDraw = isHumanTurn && !uiState.canPlayDrawnCard,
+                canDraw = canDraw,
                 mustDraw = gameState.turnPhase == TurnPhase.MUST_DRAW && isHumanTurn,
                 drawCount = if (gameState.turnPhase == TurnPhase.MUST_DRAW) gameState.pendingDrawCount else 1,
                 onClick = onDrawCard

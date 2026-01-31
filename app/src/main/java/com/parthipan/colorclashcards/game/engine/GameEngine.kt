@@ -288,8 +288,10 @@ object GameEngine {
      * @return Updated game state with the drawn card as lastDrawnCard for single draws
      */
     fun drawCard(state: GameState, count: Int = 1): GameState {
-        // Prevent drawing if player already drew this turn
-        if (state.turnPhase == TurnPhase.DREW_CARD) {
+        // Only allow drawing in valid phases
+        // PLAY_OR_DRAW: Normal draw (player hasn't drawn yet)
+        // MUST_DRAW: Forced draw from +2 or +4
+        if (state.turnPhase != TurnPhase.PLAY_OR_DRAW && state.turnPhase != TurnPhase.MUST_DRAW) {
             return state
         }
 

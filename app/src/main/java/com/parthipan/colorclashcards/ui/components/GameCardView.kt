@@ -128,8 +128,9 @@ fun GameCardView(
                     )
                 } else Modifier
             )
-            .pointerInput(faceDown, onClick) {
-                if (!faceDown && onClick != null) {
+            .pointerInput(onClick) {
+                // Allow clicks on both face-up and face-down cards (e.g., draw pile)
+                if (onClick != null) {
                     detectTapGestures(
                         onPress = {
                             isPressed = true

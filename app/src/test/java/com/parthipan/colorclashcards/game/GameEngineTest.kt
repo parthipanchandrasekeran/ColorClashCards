@@ -1828,4 +1828,507 @@ class GameEngineTest {
         assertEquals(200, p1After?.totalScore)
         assertEquals(150, p2After?.totalScore)
     }
+
+    // ==================== Additional Draw Tests ====================
+
+    @Test
+    fun `draw reshuffles discard pile when deck is empty`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        // Deck is empty, discard pile has multiple cards
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),  // Empty deck
+            discardPile = listOf(
+                Card.number(CardColor.GREEN, 1),
+                Card.number(CardColor.GREEN, 2),
+                Card.number(CardColor.GREEN, 3)  // Top card (will stay)
+            ),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state)
+
+        // Player should have drawn a card (now 2 cards)
+        val player1After = afterDraw.players.find { it.id == "p1" }
+        assertEquals(2, player1After?.cardCount)
+
+        // Discard pile should only have the top card remaining
+        assertEquals(1, afterDraw.discardPile.size)
+        assertEquals(3, afterDraw.discardPile.first().number) // Top card stays
+
+        // Deck should have 1 card left (2 cards reshuffled, 1 drawn)
+        assertEquals(1, afterDraw.deck.size)
+    }
+
+    @Test
+    fun `draw does nothing when deck empty and discard has only one card`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),  // Empty deck
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),  // Only 1 card
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state)
+
+        // Player should NOT have drawn a card (still 1 card)
+        val player1After = afterDraw.players.find { it.id == "p1" }
+        assertEquals(1, player1After?.cardCount)
+
+        // But phase should still change to DREW_CARD
+        assertEquals(TurnPhase.DREW_CARD, afterDraw.turnPhase)
+    }
+
+    @Test
+    fun `draw with MUST_DRAW phase draws all penalty cards at once`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = listOf(
+                Card.number(CardColor.YELLOW, 1),
+                Card.number(CardColor.YELLOW, 2),
+                Card.number(CardColor.YELLOW, 3),
+                Card.number(CardColor.YELLOW, 4)
+            ),
+            discardPile = listOf(Card.wildDrawFour()),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.MUST_DRAW,
+            pendingDrawCount = 4,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state, state.pendingDrawCount)
+
+        // Player 1 should have 5 cards now (1 + 4 drawn)
+        val player1After = afterDraw.players.find { it.id == "p1" }
+        assertEquals(5, player1After?.cardCount)
+
+        // Turn should advance to player 2
+        assertEquals(1, afterDraw.currentPlayerIndex)
+
+        // Phase should be PLAY_OR_DRAW for next player
+        assertEquals(TurnPhase.PLAY_OR_DRAW, afterDraw.turnPhase)
+
+        // Pending draw count should be reset
+        assertEquals(0, afterDraw.pendingDrawCount)
+    }
+
+    @Test
+    fun `draw in PLAY_OR_DRAW phase changes to DREW_CARD and keeps same player`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = listOf(Card.number(CardColor.YELLOW, 9)),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state)
+
+        // Phase should be DREW_CARD
+        assertEquals(TurnPhase.DREW_CARD, afterDraw.turnPhase)
+
+        // Still player 1's turn
+        assertEquals(0, afterDraw.currentPlayerIndex)
+        assertEquals("p1", afterDraw.currentPlayer.id)
+    }
+
+    @Test
+    fun `draw does not work in TURN_ENDED phase`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = listOf(Card.number(CardColor.YELLOW, 9)),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.TURN_ENDED,  // Invalid phase for drawing
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state)
+
+        // Player should NOT have drawn a card
+        val player1After = afterDraw.players.find { it.id == "p1" }
+        assertEquals(1, player1After?.cardCount)
+
+        // Phase should remain TURN_ENDED
+        assertEquals(TurnPhase.TURN_ENDED, afterDraw.turnPhase)
+    }
+
+    @Test
+    fun `draw does not work in CHOOSE_COLOR phase`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = listOf(Card.number(CardColor.YELLOW, 9)),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.CHOOSE_COLOR,  // Invalid phase for drawing
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state)
+
+        // Player should NOT have drawn a card
+        val player1After = afterDraw.players.find { it.id == "p1" }
+        assertEquals(1, player1After?.cardCount)
+    }
+
+    @Test
+    fun `draw multiple cards at once for penalty`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = listOf(
+                Card.number(CardColor.YELLOW, 1),
+                Card.number(CardColor.YELLOW, 2),
+                Card.number(CardColor.YELLOW, 3)
+            ),
+            discardPile = listOf(Card.drawTwo(CardColor.RED)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.RED,
+            turnPhase = TurnPhase.MUST_DRAW,
+            pendingDrawCount = 2,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state, 2)
+
+        // Player 1 should have 3 cards now
+        val player1After = afterDraw.players.find { it.id == "p1" }
+        assertEquals(3, player1After?.cardCount)
+
+        // Turn should advance
+        assertEquals(1, afterDraw.currentPlayerIndex)
+    }
+
+    @Test
+    fun `canPlayDrawnCard returns true for matching color`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.number(CardColor.GREEN, 9)  // Just drew - matches color
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.DREW_CARD,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        assertTrue(GameEngine.canPlayDrawnCard(state))
+    }
+
+    @Test
+    fun `canPlayDrawnCard returns true for matching number`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.number(CardColor.YELLOW, 3)  // Just drew - matches number
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.DREW_CARD,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        assertTrue(GameEngine.canPlayDrawnCard(state))
+    }
+
+    @Test
+    fun `canPlayDrawnCard returns true for wild card`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.wildColor()  // Just drew - wild always matches
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.DREW_CARD,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        assertTrue(GameEngine.canPlayDrawnCard(state))
+    }
+
+    @Test
+    fun `canPlayDrawnCard returns false for non-matching card`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.number(CardColor.YELLOW, 9)  // Just drew - doesn't match
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.DREW_CARD,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        assertFalse(GameEngine.canPlayDrawnCard(state))
+    }
+
+    @Test
+    fun `getLastDrawnCard returns last card in hand`() {
+        val lastCard = Card.number(CardColor.YELLOW, 9)
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.number(CardColor.RED, 3),
+            lastCard  // Last card = most recently drawn
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.DREW_CARD,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val drawnCard = GameEngine.getLastDrawnCard(state)
+        assertNotNull(drawnCard)
+        assertEquals(CardColor.YELLOW, drawnCard!!.color)
+        assertEquals(9, drawnCard.number)
+    }
+
+    @Test
+    fun `draw works correctly with 3 players`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(Card.number(CardColor.BLUE, 7)))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(Card.number(CardColor.RED, 5)))
+        val player3 = Player(id = "p3", name = "Player 3", hand = listOf(Card.number(CardColor.GREEN, 2)))
+
+        val state = GameState(
+            players = listOf(player1, player2, player3),
+            deck = listOf(Card.number(CardColor.YELLOW, 9)),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 1,  // Player 2's turn
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state)
+
+        // Player 2 should have 2 cards now
+        val player2After = afterDraw.players.find { it.id == "p2" }
+        assertEquals(2, player2After?.cardCount)
+
+        // Still player 2's turn in DREW_CARD phase
+        assertEquals(1, afterDraw.currentPlayerIndex)
+        assertEquals(TurnPhase.DREW_CARD, afterDraw.turnPhase)
+    }
+
+    @Test
+    fun `draw works correctly with 4 players`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(Card.number(CardColor.BLUE, 7)))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(Card.number(CardColor.RED, 5)))
+        val player3 = Player(id = "p3", name = "Player 3", hand = listOf(Card.number(CardColor.GREEN, 2)))
+        val player4 = Player(id = "p4", name = "Player 4", hand = listOf(Card.number(CardColor.YELLOW, 1)))
+
+        val state = GameState(
+            players = listOf(player1, player2, player3, player4),
+            deck = listOf(Card.number(CardColor.YELLOW, 9)),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 3,  // Player 4's turn
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state)
+
+        // Player 4 should have 2 cards now
+        val player4After = afterDraw.players.find { it.id == "p4" }
+        assertEquals(2, player4After?.cardCount)
+
+        // Still player 4's turn
+        assertEquals(3, afterDraw.currentPlayerIndex)
+    }
+
+    @Test
+    fun `passTurn after draw advances to correct player in 4 player game`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.number(CardColor.YELLOW, 9)  // Just drew
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(Card.number(CardColor.RED, 5)))
+        val player3 = Player(id = "p3", name = "Player 3", hand = listOf(Card.number(CardColor.GREEN, 2)))
+        val player4 = Player(id = "p4", name = "Player 4", hand = listOf(Card.number(CardColor.YELLOW, 1)))
+
+        val state = GameState(
+            players = listOf(player1, player2, player3, player4),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.DREW_CARD,
+            direction = PlayDirection.CLOCKWISE,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterPass = GameEngine.passTurn(state)
+
+        // Should advance to player 2 (index 1)
+        assertEquals(1, afterPass.currentPlayerIndex)
+        assertEquals("p2", afterPass.currentPlayer.id)
+        assertEquals(TurnPhase.PLAY_OR_DRAW, afterPass.turnPhase)
+    }
+
+    @Test
+    fun `passTurn respects counter-clockwise direction`() {
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.number(CardColor.YELLOW, 9)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(Card.number(CardColor.RED, 5)))
+        val player3 = Player(id = "p3", name = "Player 3", hand = listOf(Card.number(CardColor.GREEN, 2)))
+
+        val state = GameState(
+            players = listOf(player1, player2, player3),
+            deck = emptyList(),
+            discardPile = listOf(Card.number(CardColor.GREEN, 3)),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.DREW_CARD,
+            direction = PlayDirection.COUNTER_CLOCKWISE,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterPass = GameEngine.passTurn(state)
+
+        // Counter-clockwise from index 0 should go to index 2 (player 3)
+        assertEquals(2, afterPass.currentPlayerIndex)
+        assertEquals("p3", afterPass.currentPlayer.id)
+    }
+
+    @Test
+    fun `draw works in middle of game with many cards played`() {
+        // Simulate a game in progress
+        val player1 = Player(id = "p1", name = "Player 1", hand = listOf(
+            Card.number(CardColor.BLUE, 7),
+            Card.number(CardColor.BLUE, 8),
+            Card.number(CardColor.BLUE, 9)
+        ))
+        val player2 = Player(id = "p2", name = "Player 2", hand = listOf(
+            Card.number(CardColor.RED, 5),
+            Card.number(CardColor.RED, 6)
+        ))
+
+        val state = GameState(
+            players = listOf(player1, player2),
+            deck = listOf(
+                Card.number(CardColor.YELLOW, 1),
+                Card.number(CardColor.YELLOW, 2)
+            ),
+            discardPile = listOf(
+                Card.number(CardColor.GREEN, 1),
+                Card.number(CardColor.GREEN, 2),
+                Card.number(CardColor.GREEN, 3),
+                Card.number(CardColor.GREEN, 4),
+                Card.number(CardColor.GREEN, 5)  // Top card
+            ),
+            currentPlayerIndex = 0,
+            currentColor = CardColor.GREEN,
+            turnPhase = TurnPhase.PLAY_OR_DRAW,
+            currentRound = 5,
+            gamePhase = GamePhase.PLAYING
+        )
+
+        val afterDraw = GameEngine.drawCard(state)
+
+        // Player should have drawn
+        val player1After = afterDraw.players.find { it.id == "p1" }
+        assertEquals(4, player1After?.cardCount)
+
+        // Verify the last card in hand is the drawn card
+        val drawnCard = player1After!!.hand.last()
+        assertEquals(CardColor.YELLOW, drawnCard.color)
+        assertEquals(1, drawnCard.number)
+    }
 }

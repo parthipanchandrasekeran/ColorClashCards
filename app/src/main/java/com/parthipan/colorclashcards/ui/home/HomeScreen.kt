@@ -1,5 +1,6 @@
 package com.parthipan.colorclashcards.ui.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,16 +17,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -35,9 +39,13 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -50,6 +58,7 @@ import com.parthipan.colorclashcards.ui.theme.CardYellow
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    onBackClick: () -> Unit,
     onNavigateToPlayOnline: () -> Unit,
     onNavigateToPlayVsComputer: () -> Unit,
     onNavigateToHowToPlay: () -> Unit,
@@ -59,6 +68,45 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollState = rememberScrollState()
+    var showLeaveConfirmDialog by remember { mutableStateOf(false) }
+
+    // Check if there's an active game that would be abandoned
+    val hasActiveGame = uiState.activeGame != null
+
+    // Handle system back button
+    BackHandler {
+        if (hasActiveGame) {
+            showLeaveConfirmDialog = true
+        } else {
+            onBackClick()
+        }
+    }
+
+    // Leave confirmation dialog
+    if (showLeaveConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showLeaveConfirmDialog = false },
+            title = { Text("Leave Color Clash?") },
+            text = {
+                Text("You have an active game. Are you sure you want to leave? You can rejoin later.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLeaveConfirmDialog = false
+                        onBackClick()
+                    }
+                ) {
+                    Text("Leave")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLeaveConfirmDialog = false }) {
+                    Text("Stay")
+                }
+            }
+        )
+    }
 
     // Sample stats - in a real app these would come from a repository
     val totalGames = 0
@@ -74,6 +122,24 @@ fun HomeScreen(
                         fontWeight = FontWeight.Bold
                     )
                 },
+                navigationIcon = {
+                    IconButton(
+                        onClick = {
+                            if (hasActiveGame) {
+                                showLeaveConfirmDialog = true
+                            } else {
+                                onBackClick()
+                            }
+                        },
+                        modifier = Modifier.testTag("colorClashBackButton")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back to Game Hub",
+                            tint = Color.White
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = CardGreen,
                     titleContentColor = Color.White
@@ -86,7 +152,8 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
-                .padding(24.dp),
+                .padding(24.dp)
+                .testTag("colorClashHomeScreen"),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(16.dp))

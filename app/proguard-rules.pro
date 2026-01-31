@@ -28,3 +28,15 @@
 # Keep data classes for Firestore serialization
 -keep class com.parthipan.colorclashcards.game.model.** { *; }
 -keep class com.parthipan.colorclashcards.data.model.** { *; }
+
+# Keep game engine classes
+-keep class com.parthipan.colorclashcards.game.engine.** { *; }
+
+# Keep UI classes
+-keep class com.parthipan.colorclashcards.ui.** { *; }
+
+# Keep enums
+-keepclassmembers enum * {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}

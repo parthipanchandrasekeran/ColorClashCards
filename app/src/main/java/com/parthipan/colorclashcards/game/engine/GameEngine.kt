@@ -306,13 +306,13 @@ object GameEngine {
                     // Can't draw - no cards available
                     return@repeat
                 }
-                val topCard = discardPile.removeLast()
+                val topCard = discardPile.removeAt(discardPile.lastIndex)
                 deck = discardPile.shuffled().toMutableList()
                 discardPile = mutableListOf(topCard)
             }
 
             if (deck.isNotEmpty()) {
-                drawnCards.add(deck.removeFirst())
+                drawnCards.add(deck.removeAt(0))
             }
         }
 
@@ -423,14 +423,14 @@ object GameEngine {
 
         // Reshuffle if needed
         if (deck.isEmpty() && discardPile.size > 1) {
-            val topCard = discardPile.removeLast()
+            val topCard = discardPile.removeAt(discardPile.lastIndex)
             deck = discardPile.shuffled().toMutableList()
             discardPile = mutableListOf(topCard)
         }
 
         if (deck.isEmpty()) return state
 
-        val drawnCard = deck.removeFirst()
+        val drawnCard = deck.removeAt(0)
         val updatedPlayer = player.addCards(listOf(drawnCard))
 
         return state.copy(

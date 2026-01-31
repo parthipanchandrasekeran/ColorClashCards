@@ -415,6 +415,7 @@ class LudoOfflineViewModel(
             diceValue = null,
             mustSelectToken = false,
             movableTokenIds = emptyList(),
+            isRolling = false, // Ensure rolling state is cleared
             canRoll = result.bonusTurn && !result.hasWon,
             message = message,
             isHumanTurn = isStillHumanTurn,

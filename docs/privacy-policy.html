@@ -19,103 +19,158 @@
         h3 { color: #555; }
         a { color: #3498db; }
         ul { padding-left: 20px; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f5f5f5; }
         .updated { color: #666; font-style: italic; }
+        .summary-box { background: #e8f4f8; border-left: 4px solid #3498db; padding: 15px; margin: 20px 0; }
         .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
     </style>
 </head>
 <body>
-    <h1>Privacy Policy for Color Clash Cards</h1>
-    <p class="updated"><strong>Last Updated: January 2025</strong></p>
+    <h1>Privacy Policy</h1>
+    <p class="updated"><strong>Last Updated: January 31, 2026</strong></p>
 
-    <h2>Introduction</h2>
-    <p>This Privacy Policy describes how Color Clash Cards ("we", "our", or "the App") collects, uses, and protects your information when you use our mobile application.</p>
+    <div class="summary-box">
+        <strong>Summary:</strong> Color Clash Cards collects your display name and profile photo (from Google Sign-In) to show other players who you are. Game data like room membership, card hands, and moves are stored temporarily to enable multiplayer. We use Firebase by Google to securely store this data. We do not collect analytics, show ads, or sell your information. You can delete your data anytime by leaving games or requesting account deletion.
+    </div>
 
-    <h2>Information We Collect</h2>
+    <h2>1. Who We Are</h2>
+    <p>Color Clash Cards is a mobile gaming app featuring the Color Clash card game and the classic Ludo board game. This app is developed and maintained by an independent developer.</p>
+    <p><strong>Contact:</strong> For privacy questions or data requests, email us at:<br>
+    <a href="mailto:parthipan_chandrasekaran@yahoo.com">parthipan_chandrasekaran@yahoo.com</a></p>
 
-    <h3>Information You Provide</h3>
-    <p><strong>Google Sign-In (Optional)</strong><br>
-    When you choose to sign in with Google, we receive:</p>
+    <h2>2. What Data We Collect</h2>
+    <p>We collect only the data necessary to provide multiplayer gaming features.</p>
+
+    <h3>Account Information</h3>
+    <table>
+        <tr><th>Data</th><th>When Collected</th><th>Required?</th></tr>
+        <tr><td>Display name</td><td>When you sign in with Google</td><td>Yes (for multiplayer)</td></tr>
+        <tr><td>Profile photo URL</td><td>When you sign in with Google</td><td>No (optional display)</td></tr>
+        <tr><td>Unique user ID</td><td>Automatically generated at sign-in</td><td>Yes (identifies your account)</td></tr>
+        <tr><td>Guest account flag</td><td>When you play as guest</td><td>Yes (to distinguish account types)</td></tr>
+        <tr><td>Account creation date</td><td>When you first sign in</td><td>Yes (account management)</td></tr>
+    </table>
+
+    <h3>Game Data</h3>
+    <table>
+        <tr><th>Data</th><th>When Collected</th><th>Purpose</th></tr>
+        <tr><td>Room membership</td><td>When you create or join a game room</td><td>To connect you with other players</td></tr>
+        <tr><td>Ready status</td><td>When you mark yourself ready in a lobby</td><td>To coordinate game start</td></tr>
+        <tr><td>Card hands</td><td>During Color Clash matches</td><td>Your private cards (only you can see them)</td></tr>
+        <tr><td>Game actions</td><td>When you play cards, draw, or roll dice</td><td>To sync gameplay across players</td></tr>
+        <tr><td>Token positions</td><td>During Ludo matches</td><td>To track game progress</td></tr>
+        <tr><td>Move history</td><td>During Ludo matches</td><td>To validate and display moves</td></tr>
+    </table>
+
+    <h3>Connection Data</h3>
+    <table>
+        <tr><th>Data</th><th>When Collected</th><th>Purpose</th></tr>
+        <tr><td>Online status</td><td>While in a multiplayer game</td><td>To show other players you are connected</td></tr>
+        <tr><td>Last active time</td><td>Periodically during games</td><td>To detect disconnections</td></tr>
+        <tr><td>Disconnect time</td><td>When you lose connection</td><td>To allow reconnection within a time window</td></tr>
+    </table>
+
+    <h3>Device Preferences</h3>
+    <table>
+        <tr><th>Data</th><th>Where Stored</th><th>Purpose</th></tr>
+        <tr><td>Dark mode setting</td><td>On your device only</td><td>To remember your display preference</td></tr>
+    </table>
+
+    <h3>What We Do NOT Collect</h3>
     <ul>
-        <li>Your display name</li>
-        <li>Your email address</li>
-        <li>Your Google profile photo URL</li>
-    </ul>
-    <p>This information is used to identify you in multiplayer games and maintain your game statistics.</p>
-
-    <p><strong>Guest Mode</strong><br>
-    If you play as a guest, we assign you a random anonymous identifier. No personal information is collected.</p>
-
-    <h3>Information Collected Automatically</h3>
-    <p><strong>Gameplay Data</strong></p>
-    <ul>
-        <li>Game actions (cards played, matches won/lost)</li>
-        <li>Room participation for multiplayer games</li>
-        <li>Anonymous usage statistics</li>
-    </ul>
-    <p>This data is used solely to operate the game and synchronize multiplayer sessions.</p>
-
-    <h2>How We Use Your Information</h2>
-    <p>We use the collected information to:</p>
-    <ul>
-        <li>Authenticate your identity in multiplayer games</li>
-        <li>Display your name and avatar to other players</li>
-        <li>Synchronize real-time gameplay across devices</li>
-        <li>Track your game statistics and match history</li>
-        <li>Improve the app's functionality</li>
-    </ul>
-
-    <h2>Data Storage and Security</h2>
-    <p>Your data is stored securely using Firebase services provided by Google:</p>
-    <ul>
-        <li><strong>Firebase Authentication</strong>: Manages user identity</li>
-        <li><strong>Cloud Firestore</strong>: Stores game data and statistics</li>
-    </ul>
-    <p>All data is transmitted using industry-standard encryption (TLS/SSL). We do not store passwords; authentication is handled entirely by Google.</p>
-
-    <h2>Third-Party Services</h2>
-    <p>We use the following third-party services:</p>
-
-    <p><strong>Firebase (Google)</strong></p>
-    <ul>
-        <li>Purpose: Authentication, database, analytics</li>
-        <li>Privacy Policy: <a href="https://firebase.google.com/support/privacy">https://firebase.google.com/support/privacy</a></li>
-    </ul>
-
-    <p><strong>Google Play Services</strong></p>
-    <ul>
-        <li>Purpose: Google Sign-In</li>
-        <li>Privacy Policy: <a href="https://policies.google.com/privacy">https://policies.google.com/privacy</a></li>
-    </ul>
-
-    <h2>Data Sharing</h2>
-    <p>We do not sell, trade, or share your personal information with third parties except:</p>
-    <ul>
-        <li>When required by law</li>
-        <li>To protect our rights or safety</li>
-        <li>With your explicit consent</li>
+        <li>Email addresses</li>
+        <li>Phone numbers</li>
+        <li>Precise location</li>
+        <li>Payment information</li>
+        <li>Contacts or address book</li>
+        <li>Photos from your device</li>
+        <li>Advertising identifiers</li>
+        <li>Usage analytics or behavior tracking</li>
     </ul>
 
-    <h2>Children's Privacy</h2>
-    <p>Color Clash Cards is suitable for all ages. We do not knowingly collect personal information from children under 13. If you are a parent and believe your child has provided personal information, please contact us.</p>
-
-    <h2>Your Rights</h2>
-    <p>You have the right to:</p>
+    <h2>3. How We Use Your Data</h2>
+    <p>We use your data solely to provide the game experience:</p>
     <ul>
-        <li><strong>Access</strong>: View your data in the app's settings</li>
-        <li><strong>Delete</strong>: Remove your account and all associated data</li>
-        <li><strong>Opt-out</strong>: Play as a guest without providing personal information</li>
+        <li><strong>Display name and photo:</strong> Shown to other players so they know who they are playing with</li>
+        <li><strong>User ID:</strong> Links your account to your game progress and active sessions</li>
+        <li><strong>Game state data:</strong> Enables real-time multiplayer gameplay</li>
+        <li><strong>Connection status:</strong> Lets other players know if you are connected or temporarily disconnected</li>
+        <li><strong>Dark mode preference:</strong> Applies your chosen visual theme</li>
     </ul>
-    <p>For account and data deletion, please see our <a href="account-deletion.html">Account Deletion</a> page.</p>
+    <p>We do not:</p>
+    <ul>
+        <li>Sell your data to anyone</li>
+        <li>Use your data for advertising</li>
+        <li>Build profiles about you</li>
+        <li>Track your behavior across apps</li>
+        <li>Send you marketing communications</li>
+    </ul>
 
-    <h2>Changes to This Policy</h2>
-    <p>We may update this Privacy Policy from time to time. We will notify you of significant changes through the app or by updating the "Last Updated" date.</p>
+    <h2>4. Data Sharing</h2>
+    <h3>Google and Firebase Services</h3>
+    <p>We use Google's Firebase platform to provide core app functionality:</p>
+    <table>
+        <tr><th>Service</th><th>Purpose</th><th>Data Shared</th></tr>
+        <tr><td>Firebase Authentication</td><td>Sign-in and account management</td><td>Google ID token (during sign-in only)</td></tr>
+        <tr><td>Cloud Firestore</td><td>Store game rooms and match data</td><td>All game data listed in Section 2</td></tr>
+    </table>
+    <p>Firebase is provided by Google LLC. When you use our app, your data is processed according to:</p>
+    <ul>
+        <li><a href="https://policies.google.com/privacy">Google Privacy Policy</a></li>
+        <li><a href="https://firebase.google.com/terms">Firebase Terms of Service</a></li>
+    </ul>
+    <p>Firebase servers are located in the United States. If you are outside the US, your data will be transferred to US servers.</p>
 
-    <h2>Contact Us</h2>
-    <p>If you have questions about this Privacy Policy or your data:</p>
-    <p>Email: <a href="mailto:parthipan_chandrasekaran@yahoo.com">parthipan_chandrasekaran@yahoo.com</a></p>
+    <h3>No Other Sharing</h3>
+    <p>We do not share your data with advertisers, analytics companies, data brokers, social media platforms, or any other third parties.</p>
+
+    <h2>5. Data Retention</h2>
+    <table>
+        <tr><th>Data Type</th><th>How Long We Keep It</th></tr>
+        <tr><td>Account information</td><td>Until you delete your account</td></tr>
+        <tr><td>Game room data</td><td>Until the room is deleted or expires</td></tr>
+        <tr><td>Match data (cards, moves, actions)</td><td>Until the match ends and room is deleted</td></tr>
+        <tr><td>Connection/presence data</td><td>Until you leave the game room</td></tr>
+        <tr><td>Dark mode preference</td><td>Until you uninstall the app or clear app data</td></tr>
+    </table>
+
+    <h2>6. Security</h2>
+    <p>We take reasonable measures to protect your data:</p>
+    <ul>
+        <li><strong>Encryption in transit:</strong> All data sent between your device and our servers uses HTTPS/TLS encryption</li>
+        <li><strong>Access controls:</strong> Firestore security rules ensure only you can read your private card hand, only room members can see room data, and only the room host can modify room settings</li>
+        <li><strong>Authentication:</strong> Google Sign-In provides secure account access</li>
+        <li><strong>No passwords stored:</strong> We never see or store your Google password</li>
+    </ul>
+
+    <h2>7. Children's Privacy</h2>
+    <p>Color Clash Cards is intended for a general audience and does not specifically target children.</p>
+    <ul>
+        <li>We do not knowingly collect personal information from children under 13</li>
+        <li>If you are a parent and believe your child has provided personal information, please contact us</li>
+        <li>Upon verification, we will delete such information promptly</li>
+    </ul>
+
+    <h2>8. Your Rights</h2>
+    <h3>Access Your Data</h3>
+    <p>You can see your display name and profile photo in the app. Your game history is visible while rooms remain active.</p>
+
+    <h3>Delete Your Data</h3>
+    <table>
+        <tr><th>What to Delete</th><th>How to Delete</th></tr>
+        <tr><td>Leave a game room</td><td>Tap the back button and confirm leaving</td></tr>
+        <tr><td>Your account and all data</td><td>Contact us at the email above or use in-app deletion</td></tr>
+        <tr><td>Local preferences</td><td>Clear app data in device settings or uninstall</td></tr>
+    </table>
+    <p>For detailed deletion instructions, see our <a href="account-deletion.html">Account & Data Deletion</a> page.</p>
+
+    <h2>9. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. When we do, we will update the "Last updated" date at the top. For significant changes, we will notify you through the app.</p>
 
     <div class="footer">
-        <p>&copy; 2025 Color Clash Cards. All rights reserved.</p>
+        <p>&copy; 2026 Color Clash Cards. All rights reserved.</p>
         <p><a href="account-deletion.html">Account & Data Deletion</a></p>
     </div>
 </body>

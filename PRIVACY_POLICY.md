@@ -44,7 +44,7 @@ We collect only the data necessary to provide multiplayer gaming features. Here 
 ### Connection Data
 
 | Data | When Collected | Purpose |
-|------|---------------|---------|
+|------|----------------|---------|
 | Online status | While in a multiplayer game | To show other players you are connected |
 | Last active time | Periodically during games | To detect disconnections |
 | Disconnect time | When you lose connection | To allow reconnection within a time window |
@@ -183,7 +183,7 @@ You can delete your data in the following ways:
 
 To request complete deletion of your account and associated data:
 
-1. Email us at parthipan_chandrasekaran@yahoo.com
+1. Email us at the contact address above
 2. Include "Account Deletion Request" in the subject line
 3. Provide the display name associated with your account
 4. We will process your request within 30 days
@@ -209,20 +209,6 @@ We recommend reviewing this policy periodically.
 ## Summary
 
 Color Clash Cards collects only what is needed for multiplayer gaming: your display name and profile photo (from Google Sign-In), game state data, and connection status. We use Firebase to store this data securely. We do not use analytics, advertising, or sell your data. You can delete your data by leaving games or requesting account deletion.
-
----
-
-## Google Play Data Safety
-
-| Data Type | Collected | Shared | Purpose |
-|-----------|-----------|--------|---------|
-| Name | Yes (Google Sign-In) | Yes (to other players) | App functionality |
-| Profile photo | Yes (Google Sign-In) | Yes (to other players) | App functionality |
-| Game activity | Yes | No | App functionality |
-
-**Security Practices:**
-- Data encrypted in transit: Yes
-- Data deletion available: Yes
 
 ---
 

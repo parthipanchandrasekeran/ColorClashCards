@@ -3,7 +3,10 @@
 ## Release Process
 
 ### IMPORTANT: Version Code Check
-**ALWAYS check the current version code on Play Store before creating a release build.**
+**ALWAYS ASK the user for the current Play Store version code before bumping versions.**
+
+Last known Play Store versionCode: **11** (as of Feb 2, 2026)
+Next versionCode should be: **12 or higher**
 
 The Play Store rejects uploads with duplicate version codes. Before bumping versions:
 1. Check Play Console for the latest uploaded version code

@@ -2,8 +2,6 @@ package com.parthipan.colorclashcards.ui.ludo
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -11,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,6 +31,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -52,29 +53,43 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
+import com.parthipan.colorclashcards.game.ludo.model.LudoGameState
 import com.parthipan.colorclashcards.game.ludo.model.LudoPlayer
 import com.parthipan.colorclashcards.game.ludo.model.Token
 import com.parthipan.colorclashcards.game.ludo.model.TokenState
 
 /**
- * Offline Ludo game screen using local game engine.
+ * Main Ludo game screen with board, tokens, dice, and player info.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LudoOfflineGameScreen(
-    botCount: Int,
-    difficulty: String,
+fun LudoGameScreen(
+    gameState: LudoGameState,
+    localPlayerId: String,
     onBackClick: () -> Unit,
-    viewModel: LudoOfflineViewModel = viewModel()
+    viewModel: LudoGameViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    // Initialize game on first composition
-    LaunchedEffect(Unit) {
-        viewModel.initializeGame(botCount, difficulty)
+    // Show error messages
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearError()
+        }
     }
 
-    val gameState = uiState.gameState
+    // Show info messages
+    LaunchedEffect(uiState.message) {
+        uiState.message?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+    }
+
+    val currentPlayer = gameState.currentPlayer
+    val isMyTurn = gameState.currentTurnPlayerId == localPlayerId
 
     Scaffold(
         topBar = {
@@ -94,188 +109,134 @@ fun LudoOfflineGameScreen(
                     }
                 },
                 actions = {
-                    if (gameState != null) {
-                        // Current turn indicator
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(end = 8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .clip(CircleShape)
-                                    .background(LudoBoardColors.getColor(gameState.currentPlayer.color))
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (uiState.isHumanTurn) "Your turn" else "${gameState.currentPlayer.name}'s turn",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color.White
-                            )
-                        }
+                    // Current turn indicator
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(LudoBoardColors.getColor(currentPlayer.color))
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isMyTurn) "Your turn" else "${currentPlayer.name}'s turn",
+                            style = MaterialTheme.typography.labelMedium
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (gameState != null) {
-                        LudoBoardColors.getColor(gameState.currentPlayer.color)
-                    } else {
-                        LudoBoardColors.Green
-                    },
+                    containerColor = LudoBoardColors.getColor(currentPlayer.color),
                     titleContentColor = Color.White,
                     navigationIconContentColor = Color.White,
                     actionIconContentColor = Color.White
                 )
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
-        if (gameState == null) {
-            // Loading state
-            Box(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(MaterialTheme.colorScheme.background),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // All players in a single row at top
+            OfflinePlayersRow(
+                players = gameState.players,
+                currentTurnPlayerId = gameState.currentTurnPlayerId,
+                localPlayerId = localPlayerId,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+
+            // Game board with tokens (long-press to toggle debug overlay)
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Loading game...")
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .background(MaterialTheme.colorScheme.background),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // All players in a single row at top
-                OfflineBotPlayersRow(
-                    players = gameState.players,
-                    currentTurnPlayerId = gameState.currentTurnPlayerId,
-                    humanPlayerId = uiState.humanPlayerId,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
+                val boardSize = minOf(maxWidth, maxHeight)
 
-                // Game board
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val boardSize = minOf(maxWidth, maxHeight)
-
-                    OfflineLudoBoardWithInteraction(
-                        gameState = gameState,
-                        selectableTokenIds = uiState.movableTokenIds,
-                        selectedTokenId = uiState.selectedTokenId,
-                        previewPath = uiState.previewPath,
-                        isTokenAnimating = uiState.isTokenAnimating,
-                        animatingTokenId = uiState.animatingTokenId,
-                        humanPlayerId = uiState.humanPlayerId,
-                        boardSize = boardSize,
-                        onTokenClick = { tokenId ->
-                            viewModel.selectToken(tokenId)
-                        },
-                        onBoardClick = {
-                            viewModel.clearTokenSelection()
-                        }
-                    )
-                }
-
-                // Compact controls area at bottom with timer ring
-                OfflineCompactControls(
-                    diceValue = uiState.diceValue,
-                    isRolling = uiState.isRolling,
-                    canRoll = uiState.canRoll,
-                    mustSelectToken = uiState.mustSelectToken,
-                    isHumanTurn = uiState.isHumanTurn,
-                    message = uiState.message,
-                    timerProgress = uiState.timerProgress,
-                    timerRemainingSeconds = uiState.timerRemainingSeconds,
-                    showTimer = uiState.showTimer,
-                    isTimerWarning = uiState.isTimerWarning,
-                    onRollDice = { viewModel.rollDice() },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                LudoBoardWithTokens(
+                    gameState = gameState,
+                    selectableTokenIds = if (isMyTurn) uiState.movableTokenIds else emptyList(),
+                    localPlayerId = localPlayerId,
+                    boardSize = boardSize,
+                    onTokenClick = { tokenId ->
+                        viewModel.moveToken(tokenId)
+                    }
                 )
             }
+
+            // Compact dice controls at bottom
+            CompactDiceControls(
+                diceValue = uiState.diceValue,
+                isRolling = uiState.isRollingDice,
+                canRoll = isMyTurn && uiState.canRollDice,
+                mustSelectToken = uiState.mustSelectToken,
+                isMyTurn = isMyTurn,
+                onRollDice = { viewModel.rollDice() },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
         }
     }
 
     // Win dialog
     if (uiState.showWinDialog) {
-        OfflineWinDialog(
+        WinDialog(
             winnerName = uiState.winnerName ?: "Unknown",
-            onDismiss = onBackClick,
+            onDismiss = { viewModel.dismissWinDialog() },
             onPlayAgain = {
-                viewModel.initializeGame(botCount, difficulty)
+                viewModel.dismissWinDialog()
+                // TODO: Implement play again
             }
         )
     }
 }
 
 /**
- * Ludo board with premium token interaction.
+ * Ludo board with all tokens rendered on top.
  */
 @Composable
-private fun OfflineLudoBoardWithInteraction(
-    gameState: com.parthipan.colorclashcards.game.ludo.model.LudoGameState,
+fun LudoBoardWithTokens(
+    gameState: LudoGameState,
     selectableTokenIds: List<Int>,
-    selectedTokenId: Int?,
-    previewPath: List<BoardPosition>,
-    isTokenAnimating: Boolean,
-    animatingTokenId: Int?,
-    humanPlayerId: String,
+    localPlayerId: String,
     boardSize: Dp,
-    onTokenClick: (Int) -> Unit,
-    onBoardClick: () -> Unit
+    onTokenClick: (Int) -> Unit
 ) {
     val cellSizeDp = boardSize / 15
-    val humanPlayer = gameState.players.find { it.id == humanPlayerId }
 
     Box(
         modifier = Modifier
             .size(boardSize)
             .clip(RoundedCornerShape(8.dp))
             .border(2.dp, Color.DarkGray, RoundedCornerShape(8.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onBoardClick
-            )
-            .testTag("ludoBoard")
     ) {
         // Draw the board
         LudoBoardCanvas(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Draw path preview if a token is selected
-        if (selectedTokenId != null && previewPath.isNotEmpty() && humanPlayer != null) {
-            PathPreviewOverlay(
-                pathPositions = previewPath,
-                tokenColor = humanPlayer.color,
-                cellSize = cellSizeDp
-            )
-        }
-
         // Draw tokens for each player
         gameState.players.forEach { player ->
-            val isHumanPlayer = player.id == humanPlayerId
-            val tokenSelectableIds = if (isHumanPlayer) selectableTokenIds else emptyList()
+            val isLocalPlayer = player.id == localPlayerId
+            val tokenSelectableIds = if (isLocalPlayer) selectableTokenIds else emptyList()
 
-            OfflinePremiumPlayerTokens(
+            PlayerTokensOverlay(
                 tokens = player.tokens,
                 color = player.color,
                 selectableTokenIds = tokenSelectableIds,
-                selectedTokenId = if (isHumanPlayer) selectedTokenId else null,
-                isAnimating = isTokenAnimating,
-                animatingTokenId = if (isHumanPlayer) animatingTokenId else null,
-                previewPath = if (isHumanPlayer) previewPath else emptyList(),
                 cellSize = cellSizeDp,
                 onTokenClick = { tokenId ->
-                    if (isHumanPlayer) {
+                    if (isLocalPlayer) {
                         onTokenClick(tokenId)
                     }
                 }
@@ -285,38 +246,23 @@ private fun OfflineLudoBoardWithInteraction(
 }
 
 /**
- * Premium token overlay with animations for a single player.
+ * Overlay of tokens for a single player.
  */
 @Composable
-private fun OfflinePremiumPlayerTokens(
+private fun PlayerTokensOverlay(
     tokens: List<Token>,
     color: LudoColor,
     selectableTokenIds: List<Int>,
-    selectedTokenId: Int?,
-    isAnimating: Boolean,
-    animatingTokenId: Int?,
-    previewPath: List<BoardPosition>,
     cellSize: Dp,
     onTokenClick: (Int) -> Unit
 ) {
     tokens.forEach { token ->
-        val position = getOfflineTokenBoardPosition(token, color)
+        val position = getTokenPosition(token, color)
         if (position != null) {
-            val isSelected = token.id == selectedTokenId
-            val isThisTokenAnimating = isAnimating && token.id == animatingTokenId
-            val targetPosition = if (isThisTokenAnimating && previewPath.isNotEmpty()) {
-                previewPath.last()
-            } else null
-
-            PremiumTokenView(
+            LudoTokenView(
                 token = token,
                 color = color,
                 isSelectable = token.id in selectableTokenIds,
-                isSelected = isSelected,
-                isAnimating = isThisTokenAnimating,
-                animationProgress = if (isThisTokenAnimating) 1f else 0f,
-                fromPosition = if (isThisTokenAnimating) position else null,
-                toPosition = targetPosition,
                 cellSize = cellSize,
                 boardPosition = position,
                 onClick = { onTokenClick(token.id) }
@@ -328,7 +274,7 @@ private fun OfflinePremiumPlayerTokens(
 /**
  * Get board position for a token.
  */
-private fun getOfflineTokenBoardPosition(token: Token, color: LudoColor): BoardPosition? {
+private fun getTokenPosition(token: Token, color: LudoColor): BoardPosition? {
     return when (token.state) {
         TokenState.HOME -> {
             LudoBoardPositions.getHomeBasePositions(color).getOrNull(token.id)
@@ -337,102 +283,29 @@ private fun getOfflineTokenBoardPosition(token: Token, color: LudoColor): BoardP
             LudoBoardPositions.getGridPosition(token.position, color)
         }
         TokenState.FINISHED -> {
+            // Offset finished tokens slightly based on ID to avoid overlap
             val center = LudoBoardPositions.getFinishPosition()
-            when (color) {
-                LudoColor.RED -> BoardPosition(center.column - 1, center.row - 1)
-                LudoColor.BLUE -> BoardPosition(center.column + 1, center.row - 1)
-                LudoColor.GREEN -> BoardPosition(center.column + 1, center.row + 1)
-                LudoColor.YELLOW -> BoardPosition(center.column - 1, center.row + 1)
+            val offset = when (token.id) {
+                0 -> BoardPosition(center.column - 1, center.row - 1)
+                1 -> BoardPosition(center.column + 1, center.row - 1)
+                2 -> BoardPosition(center.column - 1, center.row + 1)
+                3 -> BoardPosition(center.column + 1, center.row + 1)
+                else -> center
             }
-        }
-    }
-}
-
-/**
- * Compact game controls with dice, timer ring, and status - reduced height, horizontal layout.
- */
-@Composable
-private fun OfflineCompactControls(
-    diceValue: Int?,
-    isRolling: Boolean,
-    canRoll: Boolean,
-    mustSelectToken: Boolean,
-    isHumanTurn: Boolean,
-    message: String?,
-    timerProgress: Float,
-    timerRemainingSeconds: Int,
-    showTimer: Boolean,
-    isTimerWarning: Boolean,
-    onRollDice: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("gameControls"),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isTimerWarning && isHumanTurn) {
-                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            }
-        ),
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Dice with timer ring
-            DiceWithTimer(
-                value = diceValue,
-                isRolling = isRolling,
-                canRoll = canRoll,
-                timerProgress = timerProgress,
-                remainingSeconds = timerRemainingSeconds,
-                showTimer = showTimer && isHumanTurn,
-                isWarning = isTimerWarning,
-                size = 52.dp,
-                onRoll = onRollDice
-            )
-
-            // Status text
-            Text(
-                text = message ?: when {
-                    isTimerWarning && isHumanTurn -> "Hurry! ${timerRemainingSeconds}s left"
-                    isRolling -> "Rolling..."
-                    canRoll -> "Tap dice to roll"
-                    mustSelectToken -> "Select a token to move"
-                    isHumanTurn -> "Roll the dice to continue"
-                    else -> "Bot is thinking..."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isTimerWarning && isHumanTurn) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                fontWeight = if (isTimerWarning && isHumanTurn) FontWeight.Bold else FontWeight.Normal,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("statusText")
-            )
+            offset
         }
     }
 }
 
 /**
  * Horizontal row of all players shown as compact chips.
+ * Single source of truth: currentTurnPlayerId determines which player is highlighted.
  */
 @Composable
-private fun OfflineBotPlayersRow(
+private fun OfflinePlayersRow(
     players: List<LudoPlayer>,
     currentTurnPlayerId: String,
-    humanPlayerId: String,
+    localPlayerId: String,
     modifier: Modifier = Modifier
 ) {
     if (players.isEmpty()) return
@@ -444,11 +317,11 @@ private fun OfflineBotPlayersRow(
     ) {
         items(players, key = { it.id }) { player ->
             val isCurrentTurn = player.id == currentTurnPlayerId
-            val isHumanPlayer = player.id == humanPlayerId
+            val isLocalPlayer = player.id == localPlayerId
 
-            OfflineBotPlayerChip(
+            OfflinePlayerChip(
                 player = player,
-                displayName = if (isHumanPlayer) "You" else player.name,
+                displayName = if (isLocalPlayer) "You" else player.name,
                 isCurrentTurn = isCurrentTurn,
                 modifier = Modifier.testTag("playerItem_${player.id}")
             )
@@ -460,7 +333,7 @@ private fun OfflineBotPlayersRow(
  * Compact player chip showing color, name, and token counts.
  */
 @Composable
-private fun OfflineBotPlayerChip(
+private fun OfflinePlayerChip(
     player: LudoPlayer,
     displayName: String,
     isCurrentTurn: Boolean,
@@ -532,16 +405,19 @@ private fun OfflineBotPlayerChip(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OfflineBotTokenCountBadge(
+                OfflineTokenCountBadge(
                     count = homeCount,
+                    label = "H",
                     color = playerColor.copy(alpha = 0.4f)
                 )
-                OfflineBotTokenCountBadge(
+                OfflineTokenCountBadge(
                     count = activeCount,
+                    label = "A",
                     color = playerColor
                 )
-                OfflineBotTokenCountBadge(
+                OfflineTokenCountBadge(
                     count = finishedCount,
+                    label = "F",
                     color = Color(0xFF4CAF50)
                 )
             }
@@ -550,11 +426,12 @@ private fun OfflineBotPlayerChip(
 }
 
 /**
- * Small badge showing token count.
+ * Small badge showing token count with label.
  */
 @Composable
-private fun OfflineBotTokenCountBadge(
+private fun OfflineTokenCountBadge(
     count: Int,
+    label: String,
     color: Color
 ) {
     Row(
@@ -576,10 +453,86 @@ private fun OfflineBotTokenCountBadge(
 }
 
 /**
- * Win dialog for offline game.
+ * Compact dice controls with optional timer ring - reduced height, horizontal layout with rounded card.
  */
 @Composable
-private fun OfflineWinDialog(
+private fun CompactDiceControls(
+    diceValue: Int?,
+    isRolling: Boolean,
+    canRoll: Boolean,
+    mustSelectToken: Boolean,
+    isMyTurn: Boolean,
+    onRollDice: () -> Unit,
+    modifier: Modifier = Modifier,
+    timerProgress: Float = 1f,
+    timerRemainingSeconds: Int = 30,
+    showTimer: Boolean = false,
+    isTimerWarning: Boolean = false
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("gameControls"),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isTimerWarning && isMyTurn) {
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Dice with optional timer ring
+            DiceWithTimer(
+                value = diceValue,
+                isRolling = isRolling,
+                canRoll = canRoll,
+                timerProgress = timerProgress,
+                remainingSeconds = timerRemainingSeconds,
+                showTimer = showTimer && isMyTurn,
+                isWarning = isTimerWarning,
+                size = 52.dp,
+                onRoll = onRollDice
+            )
+
+            // Status text - takes remaining space
+            Text(
+                text = when {
+                    isTimerWarning && isMyTurn -> "Hurry! ${timerRemainingSeconds}s left"
+                    isRolling -> "Rolling..."
+                    canRoll -> "Tap dice to roll"
+                    mustSelectToken -> "Select a token to move"
+                    isMyTurn -> "Roll the dice to continue"
+                    else -> "Waiting for other player..."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isTimerWarning && isMyTurn) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                fontWeight = if (isTimerWarning && isMyTurn) FontWeight.Bold else FontWeight.Normal,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("statusText")
+            )
+        }
+    }
+}
+
+/**
+ * Win dialog shown when a player wins.
+ */
+@Composable
+fun WinDialog(
     winnerName: String,
     onDismiss: () -> Unit,
     onPlayAgain: () -> Unit
@@ -614,4 +567,23 @@ private fun OfflineWinDialog(
             }
         }
     )
+}
+
+/**
+ * Preview/Demo version of the game board for the home screen.
+ */
+@Composable
+fun LudoBoardPreviewLarge(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(12.dp))
+            .border(2.dp, Color.DarkGray, RoundedCornerShape(12.dp))
+    ) {
+        LudoBoardCanvas(
+            modifier = Modifier.fillMaxSize()
+        )
+    }
 }

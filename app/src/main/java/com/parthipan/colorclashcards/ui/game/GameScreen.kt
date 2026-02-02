@@ -1953,9 +1953,9 @@ private fun RoundSummaryDialog(
                     ) {
                         Text(
                             text = if (isTimeout) {
-                                "$winnerDisplayName wins by lowest hand!"
+                                if (isHumanWinner) "You win by lowest hand!" else "$winnerDisplayName wins by lowest hand!"
                             } else {
-                                "$winnerDisplayName won this round!"
+                                if (isHumanWinner) "You won this round!" else "$winnerDisplayName won this round!"
                             },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,

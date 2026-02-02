@@ -216,6 +216,56 @@ fun LudoOfflineGameScreen(
 }
 
 /**
+ * Data class to hold token info with its player context for stacking calculations.
+ */
+private data class TokenWithContext(
+    val token: Token,
+    val color: LudoColor,
+    val playerId: String,
+    val position: BoardPosition
+)
+
+/**
+ * Calculate offsets for stacked tokens within a cell.
+ * Returns a list of (x, y) offsets and a scale factor.
+ */
+private fun calculateStackOffsets(count: Int, cellSize: Dp): Pair<List<Pair<Dp, Dp>>, Float> {
+    val quarterCell = cellSize.value / 4
+
+    return when (count) {
+        1 -> Pair(
+            listOf(Pair(0.dp, 0.dp)),
+            1f
+        )
+        2 -> Pair(
+            listOf(
+                Pair((-quarterCell * 0.6f).dp, 0.dp),  // Left
+                Pair((quarterCell * 0.6f).dp, 0.dp)    // Right
+            ),
+            0.75f
+        )
+        3 -> Pair(
+            listOf(
+                Pair(0.dp, (-quarterCell * 0.5f).dp),           // Top center
+                Pair((-quarterCell * 0.6f).dp, (quarterCell * 0.4f).dp),  // Bottom left
+                Pair((quarterCell * 0.6f).dp, (quarterCell * 0.4f).dp)    // Bottom right
+            ),
+            0.65f
+        )
+        else -> Pair(
+            // 4+ tokens: 2x2 grid (only use first 4 positions)
+            listOf(
+                Pair((-quarterCell * 0.5f).dp, (-quarterCell * 0.5f).dp),  // Top-left
+                Pair((quarterCell * 0.5f).dp, (-quarterCell * 0.5f).dp),   // Top-right
+                Pair((-quarterCell * 0.5f).dp, (quarterCell * 0.5f).dp),   // Bottom-left
+                Pair((quarterCell * 0.5f).dp, (quarterCell * 0.5f).dp)     // Bottom-right
+            ),
+            0.55f
+        )
+    }
+}
+
+/**
  * Ludo board with premium token interaction.
  */
 @Composable
@@ -233,6 +283,24 @@ private fun OfflineLudoBoardWithInteraction(
 ) {
     val cellSizeDp = boardSize / 15
     val humanPlayer = gameState.players.find { it.id == humanPlayerId }
+
+    // Collect all tokens from all players with their positions
+    // Use gameState as key to ensure recalculation when any token moves
+    val allTokensWithContext = remember(gameState) {
+        gameState.players.flatMap { player ->
+            player.tokens.mapNotNull { token ->
+                val position = getOfflineTokenBoardPosition(token, player.color)
+                if (position != null) {
+                    TokenWithContext(token, player.color, player.id, position)
+                } else null
+            }
+        }
+    }
+
+    // Group tokens by position for stacking
+    val tokensByPosition = remember(gameState) {
+        allTokensWithContext.groupBy { it.position }
+    }
 
     Box(
         modifier = Modifier
@@ -260,70 +328,45 @@ private fun OfflineLudoBoardWithInteraction(
             )
         }
 
-        // Draw tokens for each player
-        gameState.players.forEach { player ->
-            val isHumanPlayer = player.id == humanPlayerId
-            val tokenSelectableIds = if (isHumanPlayer) selectableTokenIds else emptyList()
+        // Draw tokens grouped by position with stacking offsets
+        tokensByPosition.forEach { (position, tokensAtPosition) ->
+            val stackCount = tokensAtPosition.size
+            val (offsets, stackScale) = calculateStackOffsets(stackCount, cellSizeDp)
 
-            OfflinePremiumPlayerTokens(
-                tokens = player.tokens,
-                color = player.color,
-                selectableTokenIds = tokenSelectableIds,
-                selectedTokenId = if (isHumanPlayer) selectedTokenId else null,
-                isAnimating = isTokenAnimating,
-                animatingTokenId = if (isHumanPlayer) animatingTokenId else null,
-                previewPath = if (isHumanPlayer) previewPath else emptyList(),
-                cellSize = cellSizeDp,
-                onTokenClick = { tokenId ->
-                    if (isHumanPlayer) {
-                        onTokenClick(tokenId)
+            tokensAtPosition.forEachIndexed { index, tokenContext ->
+                val offset = offsets.getOrElse(index) { Pair(0.dp, 0.dp) }
+                val isHumanPlayer = tokenContext.playerId == humanPlayerId
+                val token = tokenContext.token
+                val isSelected = token.id == selectedTokenId && isHumanPlayer
+                val isThisTokenAnimating = isTokenAnimating && token.id == animatingTokenId && isHumanPlayer
+                val targetPosition = if (isThisTokenAnimating && previewPath.isNotEmpty()) {
+                    previewPath.last()
+                } else null
+
+                PremiumTokenView(
+                    token = token,
+                    color = tokenContext.color,
+                    isSelectable = isHumanPlayer && token.id in selectableTokenIds,
+                    isSelected = isSelected,
+                    isAnimating = isThisTokenAnimating,
+                    animationProgress = if (isThisTokenAnimating) 1f else 0f,
+                    fromPosition = if (isThisTokenAnimating) position else null,
+                    toPosition = targetPosition,
+                    cellSize = cellSizeDp,
+                    boardPosition = position,
+                    stackOffset = offset,
+                    stackScale = stackScale,
+                    onClick = {
+                        if (isHumanPlayer) {
+                            onTokenClick(token.id)
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     }
 }
 
-/**
- * Premium token overlay with animations for a single player.
- */
-@Composable
-private fun OfflinePremiumPlayerTokens(
-    tokens: List<Token>,
-    color: LudoColor,
-    selectableTokenIds: List<Int>,
-    selectedTokenId: Int?,
-    isAnimating: Boolean,
-    animatingTokenId: Int?,
-    previewPath: List<BoardPosition>,
-    cellSize: Dp,
-    onTokenClick: (Int) -> Unit
-) {
-    tokens.forEach { token ->
-        val position = getOfflineTokenBoardPosition(token, color)
-        if (position != null) {
-            val isSelected = token.id == selectedTokenId
-            val isThisTokenAnimating = isAnimating && token.id == animatingTokenId
-            val targetPosition = if (isThisTokenAnimating && previewPath.isNotEmpty()) {
-                previewPath.last()
-            } else null
-
-            PremiumTokenView(
-                token = token,
-                color = color,
-                isSelectable = token.id in selectableTokenIds,
-                isSelected = isSelected,
-                isAnimating = isThisTokenAnimating,
-                animationProgress = if (isThisTokenAnimating) 1f else 0f,
-                fromPosition = if (isThisTokenAnimating) position else null,
-                toPosition = targetPosition,
-                cellSize = cellSize,
-                boardPosition = position,
-                onClick = { onTokenClick(token.id) }
-            )
-        }
-    }
-}
 
 /**
  * Get board position for a token.

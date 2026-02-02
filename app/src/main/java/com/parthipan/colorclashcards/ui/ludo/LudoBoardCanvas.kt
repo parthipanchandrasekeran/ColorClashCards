@@ -147,6 +147,12 @@ private fun DrawScope.drawHomeBase(
 
 /**
  * Draw the cross-shaped track around the board.
+ * Classic Ludo board track layout (15x15 grid):
+ * - Top arm: rows 0-5, cols 6-8 (3 cells wide, 6 cells tall)
+ * - Bottom arm: rows 9-14, cols 6-8 (3 cells wide, 6 cells tall)
+ * - Left arm: rows 6-8, cols 0-5 (6 cells wide, 3 cells tall)
+ * - Right arm: rows 6-8, cols 9-14 (6 cells wide, 3 cells tall)
+ * - Center: rows 6-8, cols 6-8 (3x3 grid, covered by triangles)
  */
 private fun DrawScope.drawTrack(cellSize: Float) {
     // Top vertical arm (columns 6-8, rows 0-5)
@@ -305,13 +311,57 @@ private fun DrawScope.drawSafeCells(cellSize: Float) {
         drawStartingCell(col * cellSize, row * cellSize, cellSize, LudoBoardColors.getColor(color))
     }
 
-    // Additional safe cells (gray stars) - 8 positions after each start
-    val starIndices = listOf(8, 21, 34, 47)
-    starIndices.forEach { index ->
-        val cell = LudoBoard.getRingCell(index) ?: return@forEach
-        val (row, col) = cell
-        drawSafeStarCell(col * cellSize, row * cellSize, cellSize)
+    // Safe star positions - explicit (row, col) on the visible track
+    // These are symmetric positions on each arm, near where the arm meets the center.
+    // NOTE: Game logic uses RING_CELLS indices for safe cell rules, but for RENDERING
+    // we use explicit positions that are guaranteed to be on the visible track.
+    //
+    // Track arms (where stars must be placed):
+    // - Top arm: rows 0-5, cols 6-8
+    // - Left arm: rows 6-8, cols 0-5
+    // - Right arm: rows 6-8, cols 9-14
+    // - Bottom arm: rows 9-14, cols 6-8
+    //
+    // Symmetric star positions:
+    // - GREEN: (6, 5) - left arm, top row, near center
+    // - YELLOW: (5, 8) - top arm, bottom row, right column
+    // - BLUE: (8, 9) - right arm, bottom row, left column
+    // - RED: (9, 6) - bottom arm, top row, left column
+    val starPositions = listOf(
+        Pair(6, 5),   // GREEN star - left arm (was incorrectly at (0,1) in home area)
+        Pair(5, 8),   // YELLOW star - top arm (ring index 21)
+        Pair(8, 9),   // BLUE star - right arm (ring index 34)
+        Pair(9, 6)    // RED star - bottom arm (ring index 47)
+    )
+
+    starPositions.forEach { (row, col) ->
+        // Guard: verify star position is on visible track (not in any home area)
+        val isOnTrack = isPositionOnTrack(row, col)
+        if (isOnTrack) {
+            drawSafeStarCell(col * cellSize, row * cellSize, cellSize)
+        }
     }
+}
+
+/**
+ * Check if a position is on the visible track (cross-shaped arms).
+ * Returns false if position is in a home area or outside the board.
+ */
+private fun isPositionOnTrack(row: Int, col: Int): Boolean {
+    // Track arms:
+    // - Top arm: rows 0-5, cols 6-8
+    // - Bottom arm: rows 9-14, cols 6-8
+    // - Left arm: rows 6-8, cols 0-5
+    // - Right arm: rows 6-8, cols 9-14
+    // - Center: rows 6-8, cols 6-8
+
+    val inTopArm = row in 0..5 && col in 6..8
+    val inBottomArm = row in 9..14 && col in 6..8
+    val inLeftArm = row in 6..8 && col in 0..5
+    val inRightArm = row in 6..8 && col in 9..14
+    val inCenter = row in 6..8 && col in 6..8
+
+    return inTopArm || inBottomArm || inLeftArm || inRightArm || inCenter
 }
 
 /**

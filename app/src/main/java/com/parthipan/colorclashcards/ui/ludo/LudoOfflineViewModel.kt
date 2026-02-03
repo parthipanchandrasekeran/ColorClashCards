@@ -33,6 +33,7 @@ data class LudoOfflineUiState(
     val message: String? = null,
     val showWinDialog: Boolean = false,
     val winnerName: String? = null,
+    val rankings: List<Pair<String, String>>? = null,
     val difficulty: String = "normal",
     // Turn timer state
     val turnStartedAt: Long = 0L,
@@ -65,12 +66,13 @@ class LudoOfflineViewModel(
     val uiState: StateFlow<LudoOfflineUiState> = _uiState.asStateFlow()
 
     private var timerJob: Job? = null
+    private var botJob: Job? = null
 
     /**
      * Initialize a new offline game.
      */
     fun initializeGame(botCount: Int, difficulty: String) {
-        stopTurnTimer()
+        stopAllJobs()
 
         val gameState = LudoEngine.createOfflineGame("You", botCount)
         val humanPlayerId = gameState.players.first { !it.isBot }.id
@@ -137,6 +139,22 @@ class LudoOfflineViewModel(
     }
 
     /**
+     * Stop the bot coroutine.
+     */
+    private fun stopBotJob() {
+        botJob?.cancel()
+        botJob = null
+    }
+
+    /**
+     * Stop all active jobs (timer + bot). Called on game end.
+     */
+    private fun stopAllJobs() {
+        stopTurnTimer()
+        stopBotJob()
+    }
+
+    /**
      * Auto-skip the turn when timer expires.
      */
     private fun autoSkipTurn() {
@@ -144,6 +162,7 @@ class LudoOfflineViewModel(
         val gameState = currentState.gameState ?: return
 
         if (!currentState.isHumanTurn || gameState.isGameOver) return
+        if (gameState.currentPlayer.hasWon()) return
 
         // Advance to next player
         val newState = LudoEngine.advanceToNextPlayer(gameState)
@@ -161,7 +180,7 @@ class LudoOfflineViewModel(
 
         // Trigger bot turn if applicable
         if (newState.currentPlayer.isBot && !newState.isGameOver) {
-            viewModelScope.launch {
+            botJob = viewModelScope.launch {
                 delay(1000)
                 processBotTurn()
             }
@@ -268,7 +287,7 @@ class LudoOfflineViewModel(
             // Turn passed to bot, stop timer and trigger bot turn
             stopTurnTimer()
             _uiState.value = _uiState.value.copy(showTimer = false)
-            viewModelScope.launch {
+            botJob = viewModelScope.launch {
                 delay(1000)
                 processBotTurn()
             }
@@ -407,8 +426,24 @@ class LudoOfflineViewModel(
         val currentState = _uiState.value
         val move = result.move
 
-        val message = buildMoveMessage(move, result.bonusTurn, result.hasWon)
+        // Handle player finished (Mode B: not full game over yet)
+        val message = if (result.playerFinished && !result.hasWon) {
+            val rank = result.newState.getPlayerRank(result.move.playerId)
+            val finishedPlayer = result.newState.getPlayer(result.move.playerId)
+            "${finishedPlayer?.name} finished in position $rank!"
+        } else {
+            buildMoveMessage(move, result.bonusTurn, result.hasWon)
+        }
+
         val isStillHumanTurn = result.newState.currentTurnPlayerId == currentState.humanPlayerId
+
+        // Build rankings when game is fully over
+        val rankings = if (result.hasWon && result.newState.players.size > 2) {
+            result.newState.finishOrder.mapIndexed { index, playerId ->
+                val name = result.newState.getPlayer(playerId)?.name ?: "Unknown"
+                Pair("#${index + 1}", name)
+            }
+        } else null
 
         _uiState.value = currentState.copy(
             gameState = result.newState,
@@ -423,6 +458,7 @@ class LudoOfflineViewModel(
             winnerName = if (result.hasWon) {
                 result.newState.winner?.name
             } else null,
+            rankings = rankings,
             showTimer = isStillHumanTurn && !result.hasWon,
             // Clear token interaction state
             selectedTokenId = null,
@@ -432,7 +468,7 @@ class LudoOfflineViewModel(
         )
 
         if (result.hasWon) {
-            stopTurnTimer()
+            stopAllJobs()
             return
         }
 
@@ -442,7 +478,7 @@ class LudoOfflineViewModel(
         } else {
             // It's bot's turn, stop timer and process bot
             stopTurnTimer()
-            viewModelScope.launch {
+            botJob = viewModelScope.launch {
                 delay(1000)
                 processBotTurn()
             }
@@ -466,6 +502,14 @@ class LudoOfflineViewModel(
         // Process bot turns - each iteration is ONE complete turn (roll + optional move)
         while (gameState.currentPlayer.isBot && !gameState.isGameOver) {
             val bot = gameState.currentPlayer
+
+            // GUARD: Skip finished bots
+            if (bot.hasWon()) {
+                gameState = LudoEngine.advanceToNextPlayer(gameState)
+                _uiState.value = _uiState.value.copy(gameState = gameState)
+                continue
+            }
+
             val botId = bot.id
 
             // STEP 1: Show bot thinking
@@ -538,17 +582,37 @@ class LudoOfflineViewModel(
                     gameState = result.newState
                     val moveMsg = buildBotMoveMessage(bot.name, result.move, result.bonusTurn)
 
+                    // Build rankings when game is fully over
+                    val rankings = if (result.hasWon && gameState.players.size > 2) {
+                        gameState.finishOrder.mapIndexed { index, playerId ->
+                            val name = gameState.getPlayer(playerId)?.name ?: "Unknown"
+                            Pair("#${index + 1}", name)
+                        }
+                    } else null
+
                     _uiState.value = _uiState.value.copy(
                         gameState = gameState,
                         diceValue = null,
                         message = moveMsg,
                         showWinDialog = result.hasWon,
-                        winnerName = if (result.hasWon) bot.name else null
+                        winnerName = if (result.hasWon) gameState.winner?.name else null,
+                        rankings = rankings
                     )
 
                     // STEP 7: Check for game end
                     if (result.hasWon) {
+                        stopTurnTimer()
                         return
+                    }
+
+                    // Bot finished but game continues (Mode B)
+                    if (result.playerFinished) {
+                        _uiState.value = _uiState.value.copy(
+                            message = "${bot.name} finished all tokens!"
+                        )
+                        delay(1000)
+                        // Don't give bonus turn — advance handled by engine
+                        continue
                     }
 
                     // STEP 8: If bonus turn, delay then continue loop (will roll again)
@@ -625,6 +689,6 @@ class LudoOfflineViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        stopTurnTimer()
+        stopAllJobs()
     }
 }

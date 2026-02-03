@@ -25,7 +25,8 @@ data class LudoGameState(
     val gameStatus: GameStatus = GameStatus.WAITING,
     val consecutiveSixes: Int = 0,
     val canRollDice: Boolean = true,
-    val mustSelectToken: Boolean = false
+    val mustSelectToken: Boolean = false,
+    val finishOrder: List<String> = emptyList()
 ) {
     /**
      * Get the current player.
@@ -81,12 +82,30 @@ data class LudoGameState(
     }
 
     /**
-     * Get the next player in turn order.
+     * Get the next player in turn order, skipping finished players.
      */
     fun getNextPlayer(): LudoPlayer {
         val currentIndex = players.indexOfFirst { it.id == currentTurnPlayerId }
-        val nextIndex = (currentIndex + 1) % players.size
-        return players[nextIndex]
+        var nextIndex = (currentIndex + 1) % players.size
+        repeat(players.size) {
+            if (!players[nextIndex].hasWon()) return players[nextIndex]
+            nextIndex = (nextIndex + 1) % players.size
+        }
+        return players[nextIndex] // fallback
+    }
+
+    /**
+     * Number of players who have not yet finished all tokens.
+     */
+    val activePlayerCount: Int
+        get() = players.count { !it.hasWon() }
+
+    /**
+     * Get a player's finishing rank (1-based), or null if not yet finished.
+     */
+    fun getPlayerRank(playerId: String): Int? {
+        val index = finishOrder.indexOf(playerId)
+        return if (index >= 0) index + 1 else null
     }
 
     /**

@@ -9,6 +9,15 @@ import com.parthipan.colorclashcards.game.ludo.model.*
  */
 object LudoEngine {
 
+    // Safe logging that works in both Android and unit tests
+    private fun log(message: String) {
+        try {
+            android.util.Log.d("LudoEngine", message)
+        } catch (e: Throwable) {
+            println("[LudoEngine] $message")
+        }
+    }
+
     /**
      * Roll the dice and return possible moves.
      *
@@ -21,6 +30,11 @@ object LudoEngine {
         require(state.canRollDice) { "Cannot roll dice in current state" }
 
         val currentPlayer = state.currentPlayer
+
+        // Finished player shouldn't roll — advance to next
+        if (currentPlayer.hasWon()) {
+            return advanceToNextPlayer(state)
+        }
         val movableTokens = getMovableTokens(currentPlayer, diceValue)
 
         // Handle consecutive sixes
@@ -75,7 +89,7 @@ object LudoEngine {
      * @return True if the token can legally move
      */
     fun canTokenMove(token: Token, diceValue: Int): Boolean {
-        return when (token.state) {
+        val allowed = when (token.state) {
             TokenState.HOME -> diceValue == 6
             TokenState.ACTIVE -> {
                 val newPosition = token.position + diceValue
@@ -83,6 +97,12 @@ object LudoEngine {
             }
             TokenState.FINISHED -> false
         }
+        if (token.state == TokenState.ACTIVE) {
+            val newPos = token.position + diceValue
+            val reason = if (allowed) "ok" else "overshoot"
+            log("[LudoCanMove] pos=${token.position} diceRoll=$diceValue newPos=$newPos maxPos=${LudoBoard.FINISH_POSITION} allowed=$allowed ($reason)")
+        }
+        return allowed
     }
 
     /**
@@ -101,6 +121,12 @@ object LudoEngine {
         }
 
         val currentPlayer = state.currentPlayer
+
+        // Invariant: finished players cannot move tokens
+        if (currentPlayer.hasWon()) {
+            return MoveResult.Error("Player has already finished all tokens.")
+        }
+
         val token = currentPlayer.getToken(tokenId)
             ?: return MoveResult.Error("Token not found.")
 
@@ -148,13 +174,15 @@ object LudoEngine {
             capturedTokenInfo = capturedInfo
         )
 
-        // Check for winner
+        // Check if this player just finished all tokens
         val playerAfterMove = updatedPlayers.find { it.id == currentPlayer.id }!!
-        val hasWon = playerAfterMove.hasWon()
+        val playerFinished = playerAfterMove.hasWon() &&
+            currentPlayer.id !in state.finishOrder
 
         // Determine if player gets another turn
         // Bonus turn for: rolling 6, capturing opponent, or getting a token home
-        val bonusTurn = !hasWon && (diceValue == 6 || capturedInfo != null || moveDetails.moveType == MoveType.FINISH)
+        // A player who just finished all tokens does NOT get a bonus turn
+        val bonusTurn = !playerFinished && (diceValue == 6 || capturedInfo != null || moveDetails.moveType == MoveType.FINISH)
 
         // Build new state
         var newState = state.copy(
@@ -165,12 +193,42 @@ object LudoEngine {
             mustSelectToken = false
         )
 
-        if (hasWon) {
-            newState = newState.copy(
-                winnerId = currentPlayer.id,
-                gameStatus = GameStatus.FINISHED,
-                canRollDice = false
-            )
+        var gameOver = false
+
+        if (playerFinished) {
+            val updatedFinishOrder = newState.finishOrder + currentPlayer.id
+
+            if (state.players.size <= 2) {
+                // MODE A: 2 players — end immediately
+                newState = newState.copy(
+                    winnerId = currentPlayer.id,
+                    gameStatus = GameStatus.FINISHED,
+                    canRollDice = false,
+                    finishOrder = updatedFinishOrder
+                )
+                gameOver = true
+            } else {
+                // MODE B: 3-4 players — continue play
+                newState = newState.copy(finishOrder = updatedFinishOrder)
+                val activeCount = newState.players.count { !it.hasWon() }
+
+                if (activeCount <= 1) {
+                    // All but one finished — game over
+                    val lastPlayer = newState.players.find { !it.hasWon() }
+                    val finalOrder = if (lastPlayer != null)
+                        updatedFinishOrder + lastPlayer.id else updatedFinishOrder
+                    newState = newState.copy(
+                        winnerId = updatedFinishOrder.first(),
+                        gameStatus = GameStatus.FINISHED,
+                        canRollDice = false,
+                        finishOrder = finalOrder
+                    )
+                    gameOver = true
+                } else {
+                    // More players remain — advance turn, skip this finished player
+                    newState = advanceToNextPlayer(newState)
+                }
+            }
         } else if (bonusTurn) {
             // Player gets another turn
             newState = newState.copy(
@@ -185,8 +243,9 @@ object LudoEngine {
         return MoveResult.Success(
             newState = newState,
             move = move,
-            bonusTurn = bonusTurn,
-            hasWon = hasWon
+            bonusTurn = bonusTurn && !playerFinished,
+            hasWon = gameOver,
+            playerFinished = playerFinished
         )
     }
 
@@ -197,10 +256,26 @@ object LudoEngine {
      * 1. HOME → RING: Only with dice=6, spawn at startIndexByColor[color] (relative position 0)
      * 2. RING movement: Move forward along ring, wrapping around
      * 3. RING → LANE: At laneEntryIndexByColor[color], enter finish lane instead of continuing
-     * 4. LANE movement: Move forward in lane (positions 51-56)
-     * 5. LANE → FINISH: Exact roll to position 57 required
+     * 4. LANE movement: Move forward in lane (positions 52-57)
+     * 5. LANE → FINISH: Exact roll to position 58 required
      */
     private fun calculateMove(token: Token, diceValue: Int, color: LudoColor): MoveDetails {
+        val result = calculateMoveInternal(token, diceValue, color)
+        if (token.state == TokenState.ACTIVE) {
+            val outerIndex = LudoBoard.toAbsolutePosition(token.position, color)
+            val isLane = result.newPosition > LudoBoard.RING_END && result.newPosition < LudoBoard.FINISH_POSITION
+            val laneStep = if (isLane) result.newPosition - LudoBoard.LANE_START else -1
+            val label = when {
+                result.newTokenState == TokenState.FINISHED -> "FINISHED"
+                isLane -> "LANE step $laneStep"
+                else -> "RING"
+            }
+            log("[LudoMove] color=$color stepsFromStart=${token.position} outerIndex=$outerIndex diceRoll=$diceValue allowed=true → newPos=${result.newPosition} ($label)")
+        }
+        return result
+    }
+
+    private fun calculateMoveInternal(token: Token, diceValue: Int, color: LudoColor): MoveDetails {
         return when (token.state) {
             TokenState.HOME -> {
                 // Moving out of home - token spawns at color's start position on ring
@@ -240,7 +315,7 @@ object LudoEngine {
                     }
                     // Already in lane or entering lane
                     newPosition > LudoBoard.RING_END -> {
-                        // Moving within or into finish lane (positions 51-56)
+                        // Moving within or into finish lane (positions 52-57)
                         val enteringLane = token.position <= LudoBoard.RING_END
                         MoveDetails(
                             newPosition = newPosition,
@@ -251,7 +326,7 @@ object LudoEngine {
                         )
                     }
                     else -> {
-                        // Normal move on main ring (positions 0-50)
+                        // Normal move on main ring (positions 0-51)
                         val absolutePos = LudoBoard.toAbsolutePosition(newPosition, color)
                         MoveDetails(
                             newPosition = newPosition,
@@ -392,6 +467,11 @@ object LudoEngine {
         val player = state.getPlayer(playerId)
             ?: return ValidationResult.Invalid("Player not found.")
 
+        // Invariant: finished players cannot move tokens
+        if (player.hasWon()) {
+            return ValidationResult.Invalid("Player has already finished.")
+        }
+
         val token = player.getToken(tokenId)
             ?: return ValidationResult.Invalid("Token not found.")
 
@@ -422,7 +502,8 @@ sealed class MoveResult {
         val newState: LudoGameState,
         val move: LudoMove,
         val bonusTurn: Boolean,
-        val hasWon: Boolean
+        val hasWon: Boolean,
+        val playerFinished: Boolean = false
     ) : MoveResult()
 
     data class Error(val message: String) : MoveResult()

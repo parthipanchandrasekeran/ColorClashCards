@@ -207,6 +207,7 @@ fun LudoOfflineGameScreen(
     if (uiState.showWinDialog) {
         OfflineWinDialog(
             winnerName = uiState.winnerName ?: "Unknown",
+            rankings = uiState.rankings,
             onDismiss = onBackClick,
             onPlayAgain = {
                 viewModel.initializeGame(botCount, difficulty)
@@ -624,6 +625,7 @@ private fun OfflineBotTokenCountBadge(
 @Composable
 private fun OfflineWinDialog(
     winnerName: String,
+    rankings: List<Pair<String, String>>? = null,
     onDismiss: () -> Unit,
     onPlayAgain: () -> Unit
 ) {
@@ -639,12 +641,24 @@ private fun OfflineWinDialog(
             )
         },
         text = {
-            Text(
-                text = if (winnerName == "You") "You win!" else "$winnerName wins!",
-                style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = if (winnerName == "You") "You win!" else "$winnerName wins!",
+                    style = MaterialTheme.typography.titleLarge,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (rankings != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    rankings.forEach { (rank, name) ->
+                        Text(
+                            text = "$rank  $name",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
         },
         confirmButton = {
             Button(onClick = onPlayAgain) {

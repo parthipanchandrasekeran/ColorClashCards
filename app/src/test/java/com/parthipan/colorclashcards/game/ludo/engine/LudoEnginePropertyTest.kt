@@ -86,27 +86,27 @@ class LudoEnginePropertyTest {
                     )
                 }
 
-                // Token ACTIVE must have position 0-56
+                // Token ACTIVE must have position 0-57
                 if (token.state == TokenState.ACTIVE) {
                     assertTrue(
                         "INVARIANT VIOLATION: ACTIVE token has invalid position!\n" +
                                 "Player: ${player.name} (${player.color})\n" +
-                                "Token: ${token.id}, Position: ${token.position} (expected 0-56)\n" +
+                                "Token: ${token.id}, Position: ${token.position} (expected 0-57)\n" +
                                 "Context: $context\n" +
                                 "Move log:\n${formatMoveLog()}",
-                        token.position in 0..56
+                        token.position in 0..57
                     )
                 }
 
-                // Token FINISHED must have position 57
+                // Token FINISHED must have position 58
                 if (token.state == TokenState.FINISHED) {
                     assertEquals(
                         "INVARIANT VIOLATION: FINISHED token has invalid position!\n" +
                                 "Player: ${player.name} (${player.color})\n" +
-                                "Token: ${token.id}, Position: ${token.position} (expected 57)\n" +
+                                "Token: ${token.id}, Position: ${token.position} (expected 58)\n" +
                                 "Context: $context\n" +
                                 "Move log:\n${formatMoveLog()}",
-                        57, token.position
+                        58, token.position
                     )
                 }
             }
@@ -169,17 +169,20 @@ class LudoEnginePropertyTest {
             )
         }
 
-        // Check that no player has won if winnerId is null
+        // Check that no player has won unless tracked in finishOrder (Mode B)
         if (state.winnerId == null && state.gameStatus == GameStatus.IN_PROGRESS) {
             for (player in state.players) {
-                assertFalse(
-                    "INVARIANT VIOLATION: Player has won but winnerId not set!\n" +
-                            "Player: ${player.name} (${player.color})\n" +
-                            "All tokens finished: ${player.tokens.all { it.state == TokenState.FINISHED }}\n" +
-                            "Context: $context\n" +
-                            "Move log:\n${formatMoveLog()}",
-                    player.hasWon()
-                )
+                if (player.hasWon()) {
+                    // In Mode B (3-4 players), a finished player must be in finishOrder
+                    assertTrue(
+                        "INVARIANT VIOLATION: Player has won but not in finishOrder!\n" +
+                                "Player: ${player.name} (${player.color})\n" +
+                                "finishOrder: ${state.finishOrder}\n" +
+                                "Context: $context\n" +
+                                "Move log:\n${formatMoveLog()}",
+                        player.id in state.finishOrder
+                    )
+                }
             }
         }
     }
@@ -478,9 +481,9 @@ class LudoEnginePropertyTest {
 
             // Create a player with some finished tokens
             val tokens = listOf(
-                Token(id = 0, state = TokenState.FINISHED, position = 57),
-                Token(id = 1, state = TokenState.FINISHED, position = 57),
-                Token(id = 2, state = TokenState.ACTIVE, position = random.nextInt(0, 50)),
+                Token(id = 0, state = TokenState.FINISHED, position = 58),
+                Token(id = 1, state = TokenState.FINISHED, position = 58),
+                Token(id = 2, state = TokenState.ACTIVE, position = random.nextInt(0, 51)),
                 Token(id = 3, state = TokenState.HOME, position = -1)
             )
             val player = LudoPlayer(
@@ -506,7 +509,7 @@ class LudoEnginePropertyTest {
     }
 
     @Test
-    fun `property - position never exceeds 57`() {
+    fun `property - position never exceeds 58`() {
         repeat(500) { iteration ->
             moveLog.clear()
             val players = createRandomPlayers(2)
@@ -539,17 +542,17 @@ class LudoEnginePropertyTest {
                 for (player in state.players) {
                     for (token in player.tokens) {
                         assertTrue(
-                            "PROPERTY VIOLATION: Token position exceeds 57!\n" +
+                            "PROPERTY VIOLATION: Token position exceeds 58!\n" +
                                     "Player: ${player.name}\n" +
                                     "Token: ${token.id}, Position: ${token.position}\n" +
                                     "Iteration: $iteration",
-                            token.position <= 57
+                            token.position <= 58
                         )
                     }
                 }
             }
         }
-        println("Validated 'position never exceeds 57' property 500 times")
+        println("Validated 'position never exceeds 58' property 500 times")
     }
 
     @Test
@@ -735,10 +738,10 @@ class LudoEnginePropertyTest {
 
             // Create game where tokens are near finish
             val nearFinishTokens = listOf(
-                Token(id = 0, state = TokenState.ACTIVE, position = 54),
-                Token(id = 1, state = TokenState.ACTIVE, position = 55),
-                Token(id = 2, state = TokenState.ACTIVE, position = 53),
-                Token(id = 3, state = TokenState.ACTIVE, position = 52)
+                Token(id = 0, state = TokenState.ACTIVE, position = 55),
+                Token(id = 1, state = TokenState.ACTIVE, position = 56),
+                Token(id = 2, state = TokenState.ACTIVE, position = 54),
+                Token(id = 3, state = TokenState.ACTIVE, position = 53)
             )
             val player1 = LudoPlayer(
                 id = "player-1",

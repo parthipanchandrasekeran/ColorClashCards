@@ -95,7 +95,7 @@ fun SettingsScreen(
             text = {
                 Text(
                     if (userProfile.isGuest) {
-                        "You are signed in as a guest. Signing out will lose all your progress. Are you sure?"
+                        "You are signed in as a guest. If you sign out, you will lose all your progress. Are you sure?"
                     } else {
                         "Are you sure you want to sign out?"
                     }

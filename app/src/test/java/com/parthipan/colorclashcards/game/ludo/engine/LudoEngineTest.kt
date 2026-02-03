@@ -175,11 +175,10 @@ class LudoEngineTest {
 
     @Test
     fun `landing on opponent token sends them home`() {
-        // Arrange - Red has token at position 10 (absolute: 10), Blue has token at same absolute position
-        // Blue's position 10 corresponds to absolute position 23 (10 + 13 offset)
-        // So we need Red at position that equals Blue's absolute position
-        // Blue at relative position 5 = absolute 18 (5 + 13)
-        // Red needs to land on absolute 18, which is relative position 18 for Red
+        // Arrange - Red moves to same absolute position as Blue
+        // Red at relative 15 + dice 3 = relative 18, absolute = (18 + 39) % 52 = 5
+        // Blue at relative 31, absolute = (31 + 26) % 52 = 5
+        // Both land on absolute 5 which is NOT a safe cell
         val redTokens = listOf(
             Token(id = 0, state = TokenState.ACTIVE, position = 15), // Will move 3 to position 18
             Token(id = 1, state = TokenState.HOME, position = -1),
@@ -187,7 +186,7 @@ class LudoEngineTest {
             Token(id = 3, state = TokenState.HOME, position = -1)
         )
         val blueTokens = listOf(
-            Token(id = 0, state = TokenState.ACTIVE, position = 5), // Absolute: 5 + 13 = 18
+            Token(id = 0, state = TokenState.ACTIVE, position = 31), // Absolute: (31 + 26) % 52 = 5
             Token(id = 1, state = TokenState.HOME, position = -1),
             Token(id = 2, state = TokenState.HOME, position = -1),
             Token(id = 3, state = TokenState.HOME, position = -1)
@@ -228,6 +227,8 @@ class LudoEngineTest {
     @Test
     fun `capturing opponent grants bonus turn`() {
         // Arrange - Set up capture scenario
+        // Red at rel 15 + dice 3 = rel 18, abs = (18+39)%52 = 5
+        // Blue at rel 31, abs = (31+26)%52 = 5 — captured on non-safe cell
         val redTokens = listOf(
             Token(id = 0, state = TokenState.ACTIVE, position = 15),
             Token(id = 1, state = TokenState.HOME, position = -1),
@@ -235,7 +236,7 @@ class LudoEngineTest {
             Token(id = 3, state = TokenState.HOME, position = -1)
         )
         val blueTokens = listOf(
-            Token(id = 0, state = TokenState.ACTIVE, position = 5), // Will be captured
+            Token(id = 0, state = TokenState.ACTIVE, position = 31), // Will be captured
             Token(id = 1, state = TokenState.HOME, position = -1),
             Token(id = 2, state = TokenState.HOME, position = -1),
             Token(id = 3, state = TokenState.HOME, position = -1)
@@ -290,9 +291,9 @@ class LudoEngineTest {
 
     @Test
     fun `token on safe cell cannot be captured`() {
-        // Arrange - Both players have token at same safe cell (absolute position 0)
-        // Red at relative 0 = absolute 0 (safe cell - starting position)
-        // Blue at relative 39 = absolute (39 + 13) % 52 = 0 (same safe cell)
+        // Arrange - Both players have token at same safe cell (absolute position 39)
+        // Red at relative 0 = absolute (0 + 39) % 52 = 39 (safe cell - RED's starting position)
+        // Blue at relative 10 + dice 3 = relative 13, absolute (13 + 26) % 52 = 39 (same safe cell)
         val redTokens = listOf(
             Token(id = 0, state = TokenState.ACTIVE, position = 0), // At safe cell
             Token(id = 1, state = TokenState.HOME, position = -1),
@@ -300,7 +301,7 @@ class LudoEngineTest {
             Token(id = 3, state = TokenState.HOME, position = -1)
         )
         val blueTokens = listOf(
-            Token(id = 0, state = TokenState.ACTIVE, position = 36), // Will move to overlap red's safe cell
+            Token(id = 0, state = TokenState.ACTIVE, position = 10), // Will move to overlap red's safe cell
             Token(id = 1, state = TokenState.HOME, position = -1),
             Token(id = 2, state = TokenState.HOME, position = -1),
             Token(id = 3, state = TokenState.HOME, position = -1)
@@ -796,25 +797,25 @@ class LudoEngineTest {
     @Test
     fun `toAbsolutePosition calculates correctly for each color`() {
         // Arrange & Act & Assert
-        // Red starts at 0
-        assertEquals("Red at relative 0 = absolute 0",
-            0, LudoBoard.toAbsolutePosition(0, LudoColor.RED))
-        assertEquals("Red at relative 10 = absolute 10",
-            10, LudoBoard.toAbsolutePosition(10, LudoColor.RED))
+        // Green starts at 0 (left arm)
+        assertEquals("Green at relative 0 = absolute 0",
+            0, LudoBoard.toAbsolutePosition(0, LudoColor.GREEN))
+        assertEquals("Green at relative 10 = absolute 10",
+            10, LudoBoard.toAbsolutePosition(10, LudoColor.GREEN))
 
-        // Blue starts at 13
-        assertEquals("Blue at relative 0 = absolute 13",
-            13, LudoBoard.toAbsolutePosition(0, LudoColor.BLUE))
-        assertEquals("Blue at relative 40 = absolute 1 (wrap around)",
-            1, LudoBoard.toAbsolutePosition(40, LudoColor.BLUE))
+        // Yellow starts at 13 (top arm)
+        assertEquals("Yellow at relative 0 = absolute 13",
+            13, LudoBoard.toAbsolutePosition(0, LudoColor.YELLOW))
+        assertEquals("Yellow at relative 40 = absolute 1 (wrap around)",
+            1, LudoBoard.toAbsolutePosition(40, LudoColor.YELLOW))
 
-        // Green starts at 26 (bottom-right quadrant)
-        assertEquals("Green at relative 0 = absolute 26",
-            26, LudoBoard.toAbsolutePosition(0, LudoColor.GREEN))
+        // Blue starts at 26 (right arm)
+        assertEquals("Blue at relative 0 = absolute 26",
+            26, LudoBoard.toAbsolutePosition(0, LudoColor.BLUE))
 
-        // Yellow starts at 39 (bottom-left quadrant)
-        assertEquals("Yellow at relative 0 = absolute 39",
-            39, LudoBoard.toAbsolutePosition(0, LudoColor.YELLOW))
+        // Red starts at 39 (bottom arm)
+        assertEquals("Red at relative 0 = absolute 39",
+            39, LudoBoard.toAbsolutePosition(0, LudoColor.RED))
     }
 
     @Test
@@ -870,19 +871,19 @@ class LudoEngineTest {
         assertEquals("Token should be ACTIVE", TokenState.ACTIVE, movedToken?.state)
         assertEquals("Token should be at relative position 0 (start)", 0, movedToken?.position)
 
-        // Assert - Verify absolute position is Yellow's start (39), not Red's (0)
+        // Assert - Verify absolute position is Yellow's start (13), not Green's (0)
         val absolutePos = LudoBoard.toAbsolutePosition(0, LudoColor.YELLOW)
-        assertEquals("Yellow's absolute start position should be 39", 39, absolutePos)
+        assertEquals("Yellow's absolute start position should be 13", 13, absolutePos)
 
         // Assert - Verify start positions are keyed by color, not player index
-        assertEquals("Yellow start position should be 39 (bottom-left)",
-            39, LudoBoard.getStartPosition(LudoColor.YELLOW))
-        assertEquals("Green start position should be 26 (bottom-right)",
-            26, LudoBoard.getStartPosition(LudoColor.GREEN))
-        assertEquals("Blue start position should be 13 (top-right)",
-            13, LudoBoard.getStartPosition(LudoColor.BLUE))
-        assertEquals("Red start position should be 0 (top-left)",
-            0, LudoBoard.getStartPosition(LudoColor.RED))
+        assertEquals("Green start position should be 0 (left arm)",
+            0, LudoBoard.getStartPosition(LudoColor.GREEN))
+        assertEquals("Yellow start position should be 13 (top arm)",
+            13, LudoBoard.getStartPosition(LudoColor.YELLOW))
+        assertEquals("Blue start position should be 26 (right arm)",
+            26, LudoBoard.getStartPosition(LudoColor.BLUE))
+        assertEquals("Red start position should be 39 (bottom arm)",
+            39, LudoBoard.getStartPosition(LudoColor.RED))
     }
 
     @Test
@@ -902,19 +903,19 @@ class LudoEngineTest {
         val yellowStart = LudoBoard.getStartPosition(LudoColor.YELLOW)
 
         // Assert - Positions should be keyed by color, same regardless of player order
-        assertEquals("Red should always start at 0", 0, redStart)
-        assertEquals("Blue should always start at 13", 13, blueStart)
-        assertEquals("Green should always start at 26", 26, greenStart)
-        assertEquals("Yellow should always start at 39", 39, yellowStart)
+        assertEquals("Green should always start at 0", 0, greenStart)
+        assertEquals("Yellow should always start at 13", 13, yellowStart)
+        assertEquals("Blue should always start at 26", 26, blueStart)
+        assertEquals("Red should always start at 39", 39, redStart)
 
         // Assert - All start positions are unique
         val allStarts = setOf(redStart, blueStart, greenStart, yellowStart)
         assertEquals("All 4 start positions should be unique", 4, allStarts.size)
 
         // Assert - Start positions are evenly spaced (52/4 = 13)
-        assertEquals("Red to Blue = 13", 13, blueStart - redStart)
-        assertEquals("Blue to Green = 13", 13, greenStart - blueStart)
         assertEquals("Green to Yellow = 13", 13, yellowStart - greenStart)
+        assertEquals("Yellow to Blue = 13", 13, blueStart - yellowStart)
+        assertEquals("Blue to Red = 13", 13, redStart - blueStart)
     }
 
     // ==================== BOT TURN RULES TESTS ====================
@@ -1113,8 +1114,8 @@ class LudoEngineTest {
     @Test
     fun `bot gets bonus turn on capture - turn stays with bot`() {
         // Arrange - Bot's token will land on opponent's token (capture)
-        // Blue at relative 7 + 3 = 10, absolute = (10 + 13) % 52 = 23 (NOT a safe cell)
-        // Safe cells are: 0, 8, 13, 21, 26, 34, 39, 47 - so 23 is capturable
+        // Blue at relative 7 + 3 = 10, absolute = (10 + 26) % 52 = 36 (NOT a safe cell)
+        // Safe cells are: 0, 8, 13, 21, 26, 34, 39, 47 - so 36 is capturable
         val botTokens = listOf(
             Token(id = 0, state = TokenState.ACTIVE, position = 7), // Will move to 10
             Token(id = 1, state = TokenState.HOME, position = -1),
@@ -1123,10 +1124,10 @@ class LudoEngineTest {
         )
         val bot = bluePlayer.copy(tokens = botTokens, isBot = true)
 
-        // Red's token is at absolute position 23 where Blue will land
-        // Red needs relative position such that (pos + 0) % 52 = 23, so relative 23
+        // Red's token is at absolute position 36 where Blue will land
+        // Red needs relative position such that (pos + 39) % 52 = 36, so relative 49
         val redTokens = listOf(
-            Token(id = 0, state = TokenState.ACTIVE, position = 23), // At absolute 23
+            Token(id = 0, state = TokenState.ACTIVE, position = 49), // At absolute (49+39)%52=36
             Token(id = 1, state = TokenState.HOME, position = -1),
             Token(id = 2, state = TokenState.HOME, position = -1),
             Token(id = 3, state = TokenState.HOME, position = -1)
@@ -1158,6 +1159,215 @@ class LudoEngineTest {
         // Assert - Turn stays with bot
         assertEquals("Turn should stay with bot after capture",
             bot.id, success.newState.currentTurnPlayerId)
+    }
+
+    // ==================== CANONICAL PATH MOVEMENT TESTS ====================
+
+    @Test
+    fun `red token leaving home spawns at red start cell on ring`() {
+        // Arrange
+        val gameState = createTwoPlayerGame().copy(
+            diceValue = 6,
+            canRollDice = false,
+            mustSelectToken = true
+        )
+
+        // Act
+        val result = LudoEngine.moveToken(gameState, tokenId = 0)
+
+        // Assert
+        assertTrue("Move should succeed", result is MoveResult.Success)
+        val success = result as MoveResult.Success
+        val movedToken = success.newState.currentPlayer.getToken(0)
+
+        // Token should be at relative position 0
+        assertEquals("Token should be at relative position 0", 0, movedToken?.position)
+        assertEquals("Token should be ACTIVE", TokenState.ACTIVE, movedToken?.state)
+
+        // Absolute position should be RED's start (39)
+        val absolutePos = LudoBoard.toAbsolutePosition(0, LudoColor.RED)
+        assertEquals("RED's absolute start should be 39", 39, absolutePos)
+
+        // The cell at RED's start (ring index 39) should be (row=13, col=6)
+        val ringCell = LudoBoard.getRingCell(39)
+        assertEquals("Ring cell 39 should be at row 13", 13, ringCell?.first)
+        assertEquals("Ring cell 39 should be at col 6", 6, ringCell?.second)
+    }
+
+    @Test
+    fun `yellow token leaving home spawns at yellow start cell not red`() {
+        // Arrange - Yellow's turn
+        val gameState = LudoGameState(
+            players = listOf(redPlayer, bluePlayer, greenPlayer, yellowPlayer),
+            currentTurnPlayerId = yellowPlayer.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            diceValue = 6,
+            canRollDice = false,
+            mustSelectToken = true
+        )
+
+        // Act
+        val result = LudoEngine.moveToken(gameState, tokenId = 0)
+
+        // Assert
+        assertTrue("Move should succeed", result is MoveResult.Success)
+        val success = result as MoveResult.Success
+        val yellowPlayerAfter = success.newState.getPlayer(yellowPlayer.id)
+        val movedToken = yellowPlayerAfter?.getToken(0)
+
+        // Token should be at relative position 0
+        assertEquals("Token should be at relative position 0", 0, movedToken?.position)
+
+        // Absolute position should be YELLOW's start (13), not GREEN's (0)
+        val absolutePos = LudoBoard.toAbsolutePosition(0, LudoColor.YELLOW)
+        assertEquals("YELLOW's absolute start should be 13", 13, absolutePos)
+
+        // The cell at ring index 13 should be (row=1, col=8) - on the top arm
+        val ringCell = LudoBoard.getRingCell(13)
+        assertEquals("Ring cell 13 should be at row 1", 1, ringCell?.first)
+        assertEquals("Ring cell 13 should be at col 8 (yellow side)", 8, ringCell?.second)
+
+        // Verify it's NOT at GREEN's position
+        val greenRingCell = LudoBoard.getRingCell(0)
+        assertNotEquals("YELLOW start should NOT equal GREEN start", greenRingCell, ringCell)
+    }
+
+    @Test
+    fun `moving 1 step from start advances token correctly`() {
+        // Arrange - RED token at position 0, dice = 1
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 0),
+            Token(id = 1, state = TokenState.HOME, position = -1),
+            Token(id = 2, state = TokenState.HOME, position = -1),
+            Token(id = 3, state = TokenState.HOME, position = -1)
+        )
+        val red = redPlayer.copy(tokens = redTokens)
+
+        val gameState = LudoGameState(
+            players = listOf(red, bluePlayer),
+            currentTurnPlayerId = red.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            diceValue = 1,
+            canRollDice = false,
+            mustSelectToken = true
+        )
+
+        // Act
+        val result = LudoEngine.moveToken(gameState, tokenId = 0)
+
+        // Assert
+        assertTrue("Move should succeed", result is MoveResult.Success)
+        val success = result as MoveResult.Success
+        val movedToken = success.newState.getPlayer(red.id)?.getToken(0)
+
+        // Token should be at position 1
+        assertEquals("Token should be at position 1", 1, movedToken?.position)
+
+        // Verify the movement direction for RED: absolute 39 → 40 should go UP (row decreases)
+        // RED starts at (13,6) and moves clockwise UP along bottom arm left column
+        val cell0 = LudoBoard.getRingCell(LudoBoard.toAbsolutePosition(0, LudoColor.RED))  // (13, 6) RED START
+        val cell1 = LudoBoard.getRingCell(LudoBoard.toAbsolutePosition(1, LudoColor.RED))  // (12, 6)
+        assertTrue("RED movement 0→1 should decrease row (go up, clockwise on left col)",
+            cell1!!.first < cell0!!.first)
+    }
+
+    @Test
+    fun `token position model correctly identifies ring vs lane`() {
+        // Test ring position
+        val tokenOnRing = Token(id = 0, state = TokenState.ACTIVE, position = 25)
+        assertTrue("Token at position 25 should be on ring", tokenOnRing.isOnRing)
+        assertFalse("Token at position 25 should NOT be in lane", tokenOnRing.isInLane)
+        assertEquals("Ring index should be 25", 25, tokenOnRing.ringIndex)
+        assertNull("Lane index should be null", tokenOnRing.laneIndex)
+
+        // Test lane position
+        val tokenInLane = Token(id = 0, state = TokenState.ACTIVE, position = 53)
+        assertFalse("Token at position 53 should NOT be on ring", tokenInLane.isOnRing)
+        assertTrue("Token at position 53 should be in lane", tokenInLane.isInLane)
+        assertNull("Ring index should be null", tokenInLane.ringIndex)
+        assertEquals("Lane index should be 2 (53-51)", 2, tokenInLane.laneIndex)
+
+        // Test home position
+        val tokenAtHome = Token(id = 0, state = TokenState.HOME, position = -1)
+        assertFalse("Home token should NOT be on ring", tokenAtHome.isOnRing)
+        assertFalse("Home token should NOT be in lane", tokenAtHome.isInLane)
+    }
+
+    @Test
+    fun `token entering lane cannot be captured`() {
+        // Arrange - RED token about to enter lane (at position 50, moving 3 would go to 53 in lane)
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 50),
+            Token(id = 1, state = TokenState.HOME, position = -1),
+            Token(id = 2, state = TokenState.HOME, position = -1),
+            Token(id = 3, state = TokenState.HOME, position = -1)
+        )
+        val red = redPlayer.copy(tokens = redTokens)
+
+        val gameState = LudoGameState(
+            players = listOf(red, bluePlayer),
+            currentTurnPlayerId = red.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            diceValue = 3,
+            canRollDice = false,
+            mustSelectToken = true
+        )
+
+        // Act
+        val result = LudoEngine.moveToken(gameState, tokenId = 0)
+
+        // Assert
+        assertTrue("Move should succeed", result is MoveResult.Success)
+        val success = result as MoveResult.Success
+
+        // Token should be in lane (position 53)
+        val movedToken = success.newState.getPlayer(red.id)?.getToken(0)
+        assertEquals("Token should be at position 53 (in lane)", 53, movedToken?.position)
+        assertTrue("Token should be in lane", movedToken?.isInLane == true)
+
+        // Move type should indicate entering home stretch
+        assertEquals("Move type should be ENTER_HOME_STRETCH",
+            MoveType.ENTER_HOME_STRETCH, success.move.moveType)
+
+        // No capture should be possible in lane
+        assertNull("No capture should occur when entering lane", success.move.capturedTokenInfo)
+    }
+
+    @Test
+    fun `exact roll required to finish`() {
+        // Arrange - Token at position 55, needs exactly 2 to finish
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 55),
+            Token(id = 1, state = TokenState.HOME, position = -1),
+            Token(id = 2, state = TokenState.HOME, position = -1),
+            Token(id = 3, state = TokenState.HOME, position = -1)
+        )
+        val red = redPlayer.copy(tokens = redTokens)
+
+        // Test with exact roll (2)
+        val gameState = LudoGameState(
+            players = listOf(red, bluePlayer),
+            currentTurnPlayerId = red.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            diceValue = 2,
+            canRollDice = false,
+            mustSelectToken = true
+        )
+
+        val result = LudoEngine.moveToken(gameState, tokenId = 0)
+        assertTrue("Move with exact roll should succeed", result is MoveResult.Success)
+        val success = result as MoveResult.Success
+        assertEquals("Token should finish at position 57",
+            57, success.newState.getPlayer(red.id)?.getToken(0)?.position)
+        assertEquals("Token state should be FINISHED",
+            TokenState.FINISHED, success.newState.getPlayer(red.id)?.getToken(0)?.state)
+
+        // Test that overshooting is not allowed (canMove returns false)
+        val tokenNearFinish = Token(id = 0, state = TokenState.ACTIVE, position = 55)
+        assertFalse("Token at 55 should NOT be able to move with 3", tokenNearFinish.canMove(3))
+        assertFalse("Token at 55 should NOT be able to move with 4", tokenNearFinish.canMove(4))
+        assertTrue("Token at 55 should be able to move with 2", tokenNearFinish.canMove(2))
+        assertTrue("Token at 55 should be able to move with 1", tokenNearFinish.canMove(1))
     }
 
     // ==================== HELPER METHODS ====================

@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ColorClashCards"
 include(":app")
+include(":benchmark")

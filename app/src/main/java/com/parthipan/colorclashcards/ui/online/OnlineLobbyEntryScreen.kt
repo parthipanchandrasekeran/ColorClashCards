@@ -339,7 +339,7 @@ fun OnlineLobbyEntryScreen(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showBrowseDialog = false }) {
-                    Text("Close")
+                    Text("Done")
                 }
             }
         )
@@ -484,7 +484,7 @@ fun OnlineLobbyEntryScreen(
             // Helper text when no public rooms
             if (!hasPublicRooms) {
                 Text(
-                    text = "No public rooms right now. Create one?",
+                    text = "No public rooms available. Create one to start playing!",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

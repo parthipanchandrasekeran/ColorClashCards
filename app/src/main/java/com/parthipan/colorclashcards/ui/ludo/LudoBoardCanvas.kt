@@ -311,28 +311,10 @@ private fun DrawScope.drawSafeCells(cellSize: Float) {
         drawStartingCell(col * cellSize, row * cellSize, cellSize, LudoBoardColors.getColor(color))
     }
 
-    // Safe star positions - explicit (row, col) on the visible track
-    // These are symmetric positions on each arm, near where the arm meets the center.
-    // NOTE: Game logic uses RING_CELLS indices for safe cell rules, but for RENDERING
-    // we use explicit positions that are guaranteed to be on the visible track.
-    //
-    // Track arms (where stars must be placed):
-    // - Top arm: rows 0-5, cols 6-8
-    // - Left arm: rows 6-8, cols 0-5
-    // - Right arm: rows 6-8, cols 9-14
-    // - Bottom arm: rows 9-14, cols 6-8
-    //
-    // Symmetric star positions:
-    // - GREEN: (6, 5) - left arm, top row, near center
-    // - YELLOW: (5, 8) - top arm, bottom row, right column
-    // - BLUE: (8, 9) - right arm, bottom row, left column
-    // - RED: (9, 6) - bottom arm, top row, left column
-    val starPositions = listOf(
-        Pair(6, 5),   // GREEN star - left arm (was incorrectly at (0,1) in home area)
-        Pair(5, 8),   // YELLOW star - top arm (ring index 21)
-        Pair(8, 9),   // BLUE star - right arm (ring index 34)
-        Pair(9, 6)    // RED star - bottom arm (ring index 47)
-    )
+    // Star positions derived from the canonical SAFE_CELLS, excluding start cells.
+    // This ensures stars always match the game logic path definition.
+    val startCells = LudoBoard.START_CELL_BY_COLOR.values.toSet()
+    val starPositions = LudoBoard.SAFE_CELLS.filter { it !in startCells }
 
     starPositions.forEach { (row, col) ->
         // Guard: verify star position is on visible track (not in any home area)

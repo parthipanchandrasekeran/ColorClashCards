@@ -97,15 +97,15 @@ class AuthViewModel(
                         }
                     )
                 } else {
-                    _uiState.value = AuthUiState.Error("Failed to get ID token")
+                    _uiState.value = AuthUiState.Error("Sign-in failed. Please try again.")
                 }
             } catch (e: ApiException) {
                 _uiState.value = AuthUiState.Error(
-                    "Google Sign-In failed: ${e.statusCode}"
+                    "Sign-in failed. Please try again."
                 )
             } catch (e: Exception) {
                 _uiState.value = AuthUiState.Error(
-                    e.message ?: "An unexpected error occurred"
+                    e.message ?: "An unexpected error occurred. Please try again."
                 )
             }
         }

@@ -62,7 +62,7 @@ fun PrivacyScreen(
                 .padding(16.dp)
         ) {
             Text(
-                text = "Last updated: January 2025",
+                text = "Last updated: January 2026",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -71,8 +71,9 @@ fun PrivacyScreen(
 
             PrivacySection(
                 title = "Overview",
-                content = "Color Clash Cards is a casual card game that respects your privacy. " +
-                        "We collect minimal data necessary to provide online multiplayer features. " +
+                content = "Color Clash Cards is a casual gaming app featuring card games and " +
+                        "classic board games like Ludo. We respect your privacy and collect " +
+                        "minimal data necessary to provide online multiplayer features. " +
                         "This policy explains what data we collect and how we use it."
             )
 
@@ -85,9 +86,9 @@ fun PrivacyScreen(
                         "identify you in multiplayer games and display your name to other players.\n\n" +
                         "If you choose to play as a guest, we create an anonymous account ID. " +
                         "Guest accounts do not collect any personal information.\n\n" +
-                        "During online gameplay, we store temporary game room data including " +
-                        "room codes, player lists, and game state. This data is automatically " +
-                        "deleted when games end."
+                        "During online gameplay (both card games and Ludo), we store temporary " +
+                        "game room data including room codes, player lists, and game state. " +
+                        "This data is automatically deleted when games end."
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -114,7 +115,7 @@ fun PrivacyScreen(
 
             PrivacySection(
                 title = "No Advertising",
-                content = "Color Clash Cards does not contain advertisements. " +
+                content = "This app does not contain advertisements. " +
                         "We do not collect data for advertising purposes and do not share " +
                         "your information with ad networks."
             )
@@ -133,8 +134,8 @@ fun PrivacyScreen(
 
             PrivacySection(
                 title = "Children's Privacy",
-                content = "Color Clash Cards is suitable for all ages. We do not knowingly " +
-                        "collect personal information from children under 13. The game can " +
+                content = "This app is suitable for all ages. We do not knowingly " +
+                        "collect personal information from children under 13. All games can " +
                         "be played offline without any account or data collection."
             )
 

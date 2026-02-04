@@ -218,12 +218,17 @@ fun LudoOfflineGameScreen(
 
 /**
  * Data class to hold token info with its player context for stacking calculations.
+ *
+ * @property homeCenterCellUnits For HOME tokens: absolute center (x, y) in cellSize
+ *           units, computed via [LudoBoardPositions.getHomeSlotOffset]. When set,
+ *           the renderer uses this instead of deriving position from [position].
  */
 private data class TokenWithContext(
     val token: Token,
     val color: LudoColor,
     val playerId: String,
-    val position: BoardPosition
+    val position: BoardPosition,
+    val homeCenterCellUnits: Pair<Float, Float>? = null
 )
 
 /**
@@ -292,7 +297,11 @@ private fun OfflineLudoBoardWithInteraction(
             player.tokens.mapNotNull { token ->
                 val position = getOfflineTokenBoardPosition(token, player.color)
                 if (position != null) {
-                    TokenWithContext(token, player.color, player.id, position)
+                    // HOME tokens: compute stable center from getHomeSlotOffset
+                    val homeCenter = if (token.state == TokenState.HOME) {
+                        LudoBoardPositions.getHomeSlotOffset(player.color, token.id)
+                    } else null
+                    TokenWithContext(token, player.color, player.id, position, homeCenter)
                 } else null
             }
         }
@@ -344,6 +353,11 @@ private fun OfflineLudoBoardWithInteraction(
                     previewPath.last()
                 } else null
 
+                // For HOME tokens, pass absolute center in dp for precise positioning
+                val homeCenterDp = tokenContext.homeCenterCellUnits?.let { (cx, cy) ->
+                    Pair(cx * cellSizeDp.value, cy * cellSizeDp.value)
+                }
+
                 PremiumTokenView(
                     token = token,
                     color = tokenContext.color,
@@ -357,6 +371,7 @@ private fun OfflineLudoBoardWithInteraction(
                     boardPosition = position,
                     stackOffset = offset,
                     stackScale = stackScale,
+                    homeCenterDp = homeCenterDp,
                     onClick = {
                         if (isHumanPlayer) {
                             onTokenClick(token.id)

@@ -77,6 +77,7 @@ fun PremiumTokenView(
     boardPosition: BoardPosition,
     stackOffset: Pair<Dp, Dp> = Pair(0.dp, 0.dp),
     stackScale: Float = 1f,
+    homeCenterDp: Pair<Float, Float>? = null,
     onClick: () -> Unit = {}
 ) {
     val tokenColor = LudoBoardColors.getColor(color)
@@ -143,6 +144,9 @@ fun PremiumTokenView(
         val toX = toPosition.column * cellSize.value + cellSize.value / 2
         val easedProgress = 1f - (1f - animationProgress) * (1f - animationProgress)
         fromX + (toX - fromX) * easedProgress
+    } else if (homeCenterDp != null) {
+        // HOME tokens: use pre-computed fractional center (no grid-cell rounding)
+        homeCenterDp.first
     } else {
         boardPosition.column * cellSize.value + cellSize.value / 2 + stackOffset.first.value
     }
@@ -152,6 +156,9 @@ fun PremiumTokenView(
         val toY = toPosition.row * cellSize.value + cellSize.value / 2
         val easedProgress = 1f - (1f - animationProgress) * (1f - animationProgress)
         fromY + (toY - fromY) * easedProgress
+    } else if (homeCenterDp != null) {
+        // HOME tokens: use pre-computed fractional center (no grid-cell rounding)
+        homeCenterDp.second
     } else {
         boardPosition.row * cellSize.value + cellSize.value / 2 + stackOffset.second.value
     }
@@ -391,14 +398,14 @@ fun calculatePathPositions(
         val nextPos = currentPos + 1
 
         // Check if entering home stretch or finishing
-        if (nextPos > 56) {
+        if (nextPos > 57) {
             // Would overshoot - invalid move (shouldn't happen if validation is correct)
             break
         }
 
-        val boardPos = if (nextPos >= 51) {
-            // In home stretch (positions 51-56)
-            getHomeStretchBoardPosition(nextPos - 51, color)
+        val boardPos = if (nextPos >= 52) {
+            // In home stretch (positions 52-57)
+            getHomeStretchBoardPosition(nextPos - 52, color)
         } else {
             LudoBoardPositions.getGridPosition(nextPos, color)
         }

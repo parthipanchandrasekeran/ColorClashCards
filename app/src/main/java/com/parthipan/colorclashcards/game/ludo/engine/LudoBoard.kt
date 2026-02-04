@@ -42,13 +42,13 @@ object LudoBoard {
     const val HOME_POSITION = -1
 
     /** Position value for finished tokens */
-    const val FINISH_POSITION = 57
+    const val FINISH_POSITION = 58
 
     /** First position of finish lane (relative) */
-    const val LANE_START = 51
+    const val LANE_START = 52
 
-    /** Last position before entering finish lane (relative) */
-    const val RING_END = 50
+    /** Last position on the outer ring (relative) */
+    const val RING_END = 51
 
     // ==================== RING PATH (52 cells, clockwise) ====================
     // IMPORTANT: This is the FINALIZED ring path. Do not reverse/rotate after definition.
@@ -528,7 +528,7 @@ object LudoBoard {
 
     /**
      * Convert a player's relative position to absolute ring index.
-     * @param relativePosition Player's position (0-50 on ring)
+     * @param relativePosition Player's position (0-51 on ring)
      * @param color Player's color (determines starting offset)
      * @return Absolute index in RING_CELLS (0-51), or -1 if in lane/finished
      */

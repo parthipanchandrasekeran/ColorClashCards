@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.parthipan.colorclashcards.game.ludo.engine.LudoBotAgent
 import com.parthipan.colorclashcards.game.ludo.engine.LudoEngine
 import com.parthipan.colorclashcards.game.ludo.engine.MoveResult
+import com.parthipan.colorclashcards.game.ludo.model.GameStatus
 import com.parthipan.colorclashcards.game.ludo.model.LudoGameState
 import com.parthipan.colorclashcards.game.ludo.model.LudoMove
 import com.parthipan.colorclashcards.game.ludo.model.MoveType
@@ -235,6 +236,8 @@ class LudoOfflineViewModel(
         val currentState = _uiState.value
         if (!currentState.canRoll || currentState.isRolling) return
         if (!currentState.isHumanTurn) return
+        val gameState = currentState.gameState ?: return
+        if (gameState.isGameOver) return
 
         viewModelScope.launch {
             _uiState.value = currentState.copy(
@@ -580,6 +583,26 @@ class LudoOfflineViewModel(
             when (val result = LudoEngine.moveToken(gameState, tokenId)) {
                 is MoveResult.Success -> {
                     gameState = result.newState
+
+                    // Defensive: re-check game over using token states (2-player mode)
+                    if (!result.hasWon && gameState.players.any { it.hasWon() } && gameState.players.size <= 2) {
+                        val winner = gameState.players.first { it.hasWon() }
+                        if (gameState.winnerId == null) {
+                            gameState = gameState.copy(
+                                winnerId = winner.id,
+                                gameStatus = GameStatus.FINISHED,
+                                canRollDice = false
+                            )
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            gameState = gameState,
+                            showWinDialog = true,
+                            winnerName = winner.name
+                        )
+                        stopAllJobs()
+                        return
+                    }
+
                     val moveMsg = buildBotMoveMessage(bot.name, result.move, result.bonusTurn)
 
                     // Build rankings when game is fully over
@@ -601,7 +624,7 @@ class LudoOfflineViewModel(
 
                     // STEP 7: Check for game end
                     if (result.hasWon) {
-                        stopTurnTimer()
+                        stopAllJobs()
                         return
                     }
 

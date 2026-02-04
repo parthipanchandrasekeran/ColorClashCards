@@ -116,12 +116,12 @@ private fun DrawScope.drawHomeBase(
         size = Size(innerSize, innerSize)
     )
 
-    // Draw token circles (home positions) based on HOME_SLOTS_BY_COLOR
+    // Draw token holder circles using getHomeSlotOffset for exact alignment
     val tokenRadius = cellSize * 0.5f
-    val homeSlots = LudoBoard.HOME_SLOTS_BY_COLOR[color] ?: return
 
-    homeSlots.forEach { (row, col) ->
-        val pos = Offset(col * cellSize + cellSize / 2, row * cellSize + cellSize / 2)
+    for (slotIndex in 0..3) {
+        val (cx, cy) = LudoBoardPositions.getHomeSlotOffset(color, slotIndex)
+        val pos = Offset(cx * cellSize, cy * cellSize)
         // Draw token holder circle
         drawCircle(
             color = lightColor,
@@ -444,14 +444,14 @@ object LudoBoardPositions {
         if (relativePosition < 0) return null
         if (relativePosition >= LudoBoard.FINISH_POSITION) return null
 
-        // Lane positions (51-56)
+        // Lane positions (52-57)
         if (relativePosition > LudoBoard.RING_END) {
             val laneIndex = relativePosition - LudoBoard.LANE_START
             val cell = LudoBoard.getLaneCell(color, laneIndex) ?: return null
             return BoardPosition(cell.second, cell.first)
         }
 
-        // Ring positions (0-50)
+        // Ring positions (0-51)
         val absoluteIndex = LudoBoard.toAbsolutePosition(relativePosition, color)
         if (absoluteIndex < 0) return null
 
@@ -465,6 +465,40 @@ object LudoBoardPositions {
     fun getHomeBasePositions(color: LudoColor): List<BoardPosition> {
         val slots = LudoBoard.HOME_SLOTS_BY_COLOR[color] ?: return emptyList()
         return slots.map { (row, col) -> BoardPosition(col, row) }
+    }
+
+    /**
+     * Get the center position of a home slot using exact fractions of the home square.
+     *
+     * Returns (x, y) in cellSize units (multiply by cellSize to get dp or px).
+     * Uses 25%/75% of the 6-cell home square for a stable 2x2 layout:
+     *   slot 0 = top-left, slot 1 = top-right,
+     *   slot 2 = bottom-left, slot 3 = bottom-right.
+     *
+     * Same math for all four colors — only the home-square origin differs.
+     */
+    fun getHomeSlotOffset(color: LudoColor, slotIndex: Int): Pair<Float, Float> {
+        require(slotIndex in 0..3) { "slotIndex must be 0..3" }
+
+        // Home-square origin on the 15×15 grid (in cell units)
+        val (originCol, originRow) = when (color) {
+            LudoColor.GREEN  -> 0f to 0f
+            LudoColor.YELLOW -> 9f to 0f
+            LudoColor.RED    -> 0f to 9f
+            LudoColor.BLUE   -> 9f to 9f
+        }
+
+        val homeSize = 6f // cells
+
+        // 2×2 slot grid inside the home square
+        val col = slotIndex % 2
+        val row = slotIndex / 2
+        val xFraction = if (col == 0) 0.25f else 0.75f
+        val yFraction = if (row == 0) 0.25f else 0.75f
+
+        val x = originCol + homeSize * xFraction
+        val y = originRow + homeSize * yFraction
+        return x to y
     }
 
     /**

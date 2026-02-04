@@ -29,6 +29,9 @@ object LudoEngine {
         require(diceValue in 1..6) { "Dice value must be between 1 and 6" }
         require(state.canRollDice) { "Cannot roll dice in current state" }
 
+        // Defensive guard — prevent rolling after game ended
+        if (state.isGameOver) return state
+
         val currentPlayer = state.currentPlayer
 
         // Finished player shouldn't roll — advance to next
@@ -179,10 +182,20 @@ object LudoEngine {
         val playerFinished = playerAfterMove.hasWon() &&
             currentPlayer.id !in state.finishOrder
 
+        // Defensive: scan ALL players in case current-player detection missed a win
+        val anyOtherPlayerFinished = !playerFinished &&
+            updatedPlayers.any { p -> p.hasWon() && p.id !in state.finishOrder }
+        val effectivePlayerFinished = playerFinished || anyOtherPlayerFinished
+        val effectiveFinisherId = when {
+            playerFinished -> currentPlayer.id
+            anyOtherPlayerFinished -> updatedPlayers.first { it.hasWon() && it.id !in state.finishOrder }.id
+            else -> currentPlayer.id // unused when effectivePlayerFinished is false
+        }
+
         // Determine if player gets another turn
         // Bonus turn for: rolling 6, capturing opponent, or getting a token home
         // A player who just finished all tokens does NOT get a bonus turn
-        val bonusTurn = !playerFinished && (diceValue == 6 || capturedInfo != null || moveDetails.moveType == MoveType.FINISH)
+        val bonusTurn = !effectivePlayerFinished && (diceValue == 6 || capturedInfo != null || moveDetails.moveType == MoveType.FINISH)
 
         // Build new state
         var newState = state.copy(
@@ -195,13 +208,13 @@ object LudoEngine {
 
         var gameOver = false
 
-        if (playerFinished) {
-            val updatedFinishOrder = newState.finishOrder + currentPlayer.id
+        if (effectivePlayerFinished) {
+            val updatedFinishOrder = newState.finishOrder + effectiveFinisherId
 
             if (state.players.size <= 2) {
                 // MODE A: 2 players — end immediately
                 newState = newState.copy(
-                    winnerId = currentPlayer.id,
+                    winnerId = effectiveFinisherId,
                     gameStatus = GameStatus.FINISHED,
                     canRollDice = false,
                     finishOrder = updatedFinishOrder
@@ -243,9 +256,9 @@ object LudoEngine {
         return MoveResult.Success(
             newState = newState,
             move = move,
-            bonusTurn = bonusTurn && !playerFinished,
+            bonusTurn = bonusTurn && !effectivePlayerFinished,
             hasWon = gameOver,
-            playerFinished = playerFinished
+            playerFinished = effectivePlayerFinished
         )
     }
 

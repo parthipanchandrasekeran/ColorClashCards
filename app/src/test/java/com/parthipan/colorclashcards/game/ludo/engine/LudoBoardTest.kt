@@ -32,8 +32,8 @@ class LudoBoardTest {
     }
 
     @Test
-    fun `finish position is 57`() {
-        assertEquals("Finish position should be 57", 57, LudoBoard.FINISH_POSITION)
+    fun `finish position is 58`() {
+        assertEquals("Finish position should be 58", 58, LudoBoard.FINISH_POSITION)
     }
 
     @Test
@@ -400,35 +400,35 @@ class LudoBoardTest {
 
     @Test
     fun `isInLane correctly identifies lane positions`() {
-        // Positions 51-56 are in lane
-        for (pos in 51..56) {
+        // Positions 52-57 are in lane
+        for (pos in 52..57) {
             assertTrue("Position $pos should be in lane", LudoBoard.isInLane(pos))
         }
     }
 
     @Test
     fun `isInLane returns false for ring positions`() {
-        for (pos in 0..50) {
+        for (pos in 0..51) {
             assertFalse("Position $pos should not be in lane", LudoBoard.isInLane(pos))
         }
     }
 
     @Test
     fun `isInLane returns false for finish position`() {
-        assertFalse("Position 57 (finish) should not be in lane",
-            LudoBoard.isInLane(57))
+        assertFalse("Position 58 (finish) should not be in lane",
+            LudoBoard.isInLane(58))
     }
 
     @Test
     fun `isOnRing correctly identifies ring positions`() {
-        for (pos in 0..50) {
+        for (pos in 0..51) {
             assertTrue("Position $pos should be on ring", LudoBoard.isOnRing(pos))
         }
     }
 
     @Test
     fun `isOnRing returns false for lane and finish`() {
-        for (pos in 51..57) {
+        for (pos in 52..58) {
             assertFalse("Position $pos should not be on ring", LudoBoard.isOnRing(pos))
         }
     }
@@ -441,7 +441,7 @@ class LudoBoardTest {
     @Test
     fun `toAbsolutePosition returns -1 for lane positions`() {
         for (color in LudoColor.entries) {
-            for (pos in 51..56) {
+            for (pos in 52..57) {
                 assertEquals("Position $pos for $color should return -1",
                     -1, LudoBoard.toAbsolutePosition(pos, color))
             }
@@ -465,12 +465,12 @@ class LudoBoardTest {
 
     @Test
     fun `distanceToFinish calculations`() {
-        assertEquals("From position 0, distance should be 57", 57, LudoBoard.distanceToFinish(0))
-        assertEquals("From position 50, distance should be 7", 7, LudoBoard.distanceToFinish(50))
-        assertEquals("From position 51, distance should be 6", 6, LudoBoard.distanceToFinish(51))
-        assertEquals("From position 56, distance should be 1", 1, LudoBoard.distanceToFinish(56))
-        assertEquals("From position 57, distance should be 0", 0, LudoBoard.distanceToFinish(57))
-        assertEquals("From home (-1), distance should be 58", 58, LudoBoard.distanceToFinish(-1))
+        assertEquals("From position 0, distance should be 58", 58, LudoBoard.distanceToFinish(0))
+        assertEquals("From position 51, distance should be 7", 7, LudoBoard.distanceToFinish(51))
+        assertEquals("From position 52, distance should be 6", 6, LudoBoard.distanceToFinish(52))
+        assertEquals("From position 57, distance should be 1", 1, LudoBoard.distanceToFinish(57))
+        assertEquals("From position 58, distance should be 0", 0, LudoBoard.distanceToFinish(58))
+        assertEquals("From home (-1), distance should be 59", 59, LudoBoard.distanceToFinish(-1))
     }
 
     // ==================== COLLISION DETECTION ====================

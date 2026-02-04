@@ -67,7 +67,7 @@ class LudoGameStateBuilder {
      * Move a specific token to a position.
      * @param player Player index (0-3)
      * @param token Token index (0-3)
-     * @param position Board position (-1 = home, 0-56 = track, 57 = finished)
+     * @param position Board position (-1 = home, 0-57 = track, 58 = finished)
      */
     fun withTokenAt(player: Int, token: Int, position: Int): LudoGameStateBuilder {
         if (player < players.size) {
@@ -76,7 +76,7 @@ class LudoGameStateBuilder {
             if (token < tokens.size) {
                 val state = when {
                     position == -1 -> TokenState.HOME
-                    position == 57 -> TokenState.FINISHED
+                    position == 58 -> TokenState.FINISHED
                     else -> TokenState.ACTIVE
                 }
                 tokens[token] = tokens[token].copy(position = position, state = state)
@@ -110,7 +110,7 @@ class LudoGameStateBuilder {
         if (player < players.size) {
             val playerObj = players[player]
             val tokens = playerObj.tokens.map { token ->
-                token.copy(position = 57, state = TokenState.FINISHED)
+                token.copy(position = 58, state = TokenState.FINISHED)
             }
             players[player] = playerObj.copy(tokens = tokens)
         }
@@ -213,7 +213,7 @@ data class Token(
     val id: Int,
     val color: TokenColor,
     val state: TokenState,
-    val position: Int // -1 = home, 0-56 = track, 57 = finished
+    val position: Int // -1 = home, 0-57 = track, 58 = finished
 )
 
 data class LudoPlayer(

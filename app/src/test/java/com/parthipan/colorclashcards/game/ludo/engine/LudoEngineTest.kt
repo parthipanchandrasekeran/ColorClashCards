@@ -1734,6 +1734,57 @@ class LudoEngineTest {
         assertFalse("hasWon should be false", success.hasWon)
     }
 
+    // ==================== WIN DETECTION DEFENSIVE GUARD TESTS ====================
+
+    @Test
+    fun `2-player game ends correctly when RED finishes all 4 tokens and further rolls are blocked`() {
+        // Arrange - RED has 3 FINISHED tokens + 1 token at position 57, dice value 1
+        val tokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 57),
+            Token(id = 1, state = TokenState.FINISHED, position = 58),
+            Token(id = 2, state = TokenState.FINISHED, position = 58),
+            Token(id = 3, state = TokenState.FINISHED, position = 58)
+        )
+        val player = redPlayer.copy(tokens = tokens)
+
+        val gameState = LudoGameState(
+            players = listOf(player, bluePlayer),
+            currentTurnPlayerId = player.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            diceValue = 1, // 57 + 1 = 58 (exact finish)
+            canRollDice = false,
+            mustSelectToken = true
+        )
+
+        // Act - Move last token to finish
+        val result = LudoEngine.moveToken(gameState, tokenId = 0)
+
+        // Assert - Move succeeds and game ends
+        assertTrue("Move should succeed", result is MoveResult.Success)
+        val success = result as MoveResult.Success
+
+        assertTrue("Game should be over (hasWon)", success.hasWon)
+        assertTrue("Player should be marked as finished", success.playerFinished)
+        assertEquals("Winner should be RED", player.id, success.newState.winnerId)
+        assertEquals("Game status should be FINISHED", GameStatus.FINISHED, success.newState.gameStatus)
+        assertFalse("canRollDice should be false", success.newState.canRollDice)
+        assertTrue("Game state isGameOver should be true", success.newState.isGameOver)
+
+        // Assert - All 4 tokens are FINISHED
+        val redAfterMove = success.newState.getPlayer(player.id)!!
+        val finishedCount = redAfterMove.tokens.count { it.state == TokenState.FINISHED }
+        assertEquals("RED should have 4 FINISHED tokens", 4, finishedCount)
+        assertTrue("RED hasWon() should return true", redAfterMove.hasWon())
+
+        // Assert - Further rollDice is blocked (isGameOver guard)
+        val blockedState = LudoEngine.rollDice(
+            success.newState.copy(canRollDice = true), // force canRollDice to test guard
+            diceValue = 3
+        )
+        assertTrue("State should still be game over after blocked roll", blockedState.isGameOver)
+        assertEquals("Winner should still be RED after blocked roll", player.id, blockedState.winnerId)
+    }
+
     // ==================== HELPER METHODS ====================
 
     private fun createTwoPlayerGame(): LudoGameState {

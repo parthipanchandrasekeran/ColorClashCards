@@ -15,6 +15,7 @@ import com.parthipan.colorclashcards.game.model.CardColor
 import com.parthipan.colorclashcards.game.model.GameState
 import com.parthipan.colorclashcards.game.model.Player
 import com.parthipan.colorclashcards.game.model.TurnPhase
+import android.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +23,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * UI state for online game.
@@ -76,6 +79,7 @@ class OnlineGameViewModel(
     private var roomPlayers: List<RoomPlayer> = emptyList()
 
     // Host-only: full game state for processing
+    private val gameStateMutex = Mutex()
     private var localGameState: GameState? = null
 
     /**
@@ -305,52 +309,55 @@ class OnlineGameViewModel(
     /**
      * Process a player action (host only).
      */
-    private suspend fun processAction(action: PlayerAction) {
-        val gameState = localGameState ?: return
+    private suspend fun processAction(action: PlayerAction) = gameStateMutex.withLock {
+        try {
+            val gameState = localGameState ?: return@withLock
 
-        // Skip if not this player's turn
-        if (gameState.currentPlayer.id != action.playerId) {
-            matchRepository.deleteAction(roomId, action.id)
-            return
-        }
+            // Skip if not this player's turn
+            if (gameState.currentPlayer.id != action.playerId) {
+                matchRepository.deleteAction(roomId, action.id)
+                return@withLock
+            }
 
-        var newState: GameState? = null
+            var newState: GameState? = null
 
-        when (action.type) {
-            ActionType.PLAY_CARD.name -> {
-                val card = gameState.currentPlayer.hand.find { it.id == action.cardId }
-                if (card != null) {
-                    val chosenColor = action.chosenColor?.let {
-                        try { CardColor.valueOf(it) } catch (e: Exception) { null }
+            when (action.type) {
+                ActionType.PLAY_CARD.name -> {
+                    val card = gameState.currentPlayer.hand.find { it.id == action.cardId }
+                    if (card != null) {
+                        val chosenColor = action.chosenColor?.let {
+                            try { CardColor.valueOf(it) } catch (e: Exception) { null }
+                        }
+                        newState = GameEngine.playCard(gameState, card, chosenColor)
                     }
-                    newState = GameEngine.playCard(gameState, card, chosenColor)
+                }
+                ActionType.DRAW_CARD.name -> {
+                    val count = if (gameState.turnPhase == TurnPhase.MUST_DRAW) {
+                        gameState.pendingDrawCount
+                    } else {
+                        1
+                    }
+                    newState = GameEngine.drawCard(gameState, count)
+                }
+                ActionType.CALL_LAST_CARD.name -> {
+                    newState = GameEngine.callLastCard(gameState, action.playerId)
                 }
             }
-            ActionType.DRAW_CARD.name -> {
-                val count = if (gameState.turnPhase == TurnPhase.MUST_DRAW) {
-                    gameState.pendingDrawCount
-                } else {
-                    1
+
+            // Update state if action was valid
+            if (newState != null) {
+                localGameState = newState
+                matchRepository.updateMatchState(roomId, newState, action.id)
+
+                // Check for game end
+                if (newState.winner != null) {
+                    matchRepository.endMatch(roomId, newState.winner?.id ?: return@withLock)
                 }
-                newState = GameEngine.drawCard(gameState, count)
             }
-            ActionType.CALL_LAST_CARD.name -> {
-                newState = GameEngine.callLastCard(gameState, action.playerId)
-            }
-        }
-
-        // Delete processed action
-        matchRepository.deleteAction(roomId, action.id)
-
-        // Update state if action was valid
-        if (newState != null) {
-            localGameState = newState
-            matchRepository.updateMatchState(roomId, newState, action.id)
-
-            // Check for game end
-            if (newState.winner != null) {
-                matchRepository.endMatch(roomId, newState.winner!!.id)
-            }
+        } catch (e: Exception) {
+            Log.e("OnlineGameViewModel", "Error processing action ${action.type}", e)
+        } finally {
+            matchRepository.deleteAction(roomId, action.id)
         }
     }
 
@@ -369,59 +376,66 @@ class OnlineGameViewModel(
         botJob = viewModelScope.launch {
             delay(BotAgent.getThinkingDelayMs())
 
-            val gameState = localGameState ?: return@launch
-            val bot = gameState.currentPlayer
+            gameStateMutex.withLock {
+                val gameState = localGameState ?: return@launch
+                val bot = gameState.currentPlayer
+                val topCard = gameState.topCard ?: return@launch
 
-            // Handle forced draw
-            if (gameState.turnPhase == TurnPhase.MUST_DRAW) {
-                val newState = GameEngine.drawCard(gameState, gameState.pendingDrawCount)
-                localGameState = newState
-                matchRepository.updateMatchState(roomId, newState)
-                return@launch
+                // Handle forced draw
+                if (gameState.turnPhase == TurnPhase.MUST_DRAW) {
+                    val newState = GameEngine.drawCard(gameState, gameState.pendingDrawCount)
+                    localGameState = newState
+                    matchRepository.updateMatchState(roomId, newState)
+                    return@launch
+                }
+
+                // Choose a card to play
+                val cardToPlay = BotAgent.chooseCard(
+                    bot.hand,
+                    topCard,
+                    gameState.currentColor,
+                    "normal"
+                )
+
+                if (cardToPlay != null) {
+                    val chosenColor = if (cardToPlay.type.isWild()) {
+                        BotAgent.chooseWildColor(bot.hand - cardToPlay)
+                    } else null
+
+                    val newState = GameEngine.playCard(gameState, cardToPlay, chosenColor)
+                    if (newState != null) {
+                        localGameState = newState
+
+                        // Bot auto-calls last card
+                        if (newState.currentPlayer.cardCount == 1 && !newState.currentPlayer.hasCalledLastCard) {
+                            val calledState = GameEngine.callLastCard(newState, bot.id)
+                            localGameState = calledState
+                            matchRepository.updateMatchState(roomId, calledState)
+                        } else {
+                            matchRepository.updateMatchState(roomId, newState)
+                        }
+
+                        val winnerId = newState.winner?.id
+                        if (winnerId != null) {
+                            matchRepository.endMatch(roomId, winnerId)
+                        }
+                    }
+                } else {
+                    // Draw a card
+                    val newState = GameEngine.drawCard(gameState, 1)
+                    localGameState = newState
+                    matchRepository.updateMatchState(roomId, newState)
+                }
             }
 
-            // Choose a card to play
-            val cardToPlay = BotAgent.chooseCard(
-                bot.hand,
-                gameState.topCard!!,
-                gameState.currentColor,
-                "normal"
-            )
+            delay(BotAgent.getThinkingDelayMs() / 2)
 
-            if (cardToPlay != null) {
-                val chosenColor = if (cardToPlay.type.isWild()) {
-                    BotAgent.chooseWildColor(bot.hand - cardToPlay)
-                } else null
-
-                val newState = GameEngine.playCard(gameState, cardToPlay, chosenColor)
-                if (newState != null) {
-                    localGameState = newState
-
-                    // Bot auto-calls last card
-                    if (newState.currentPlayer.cardCount == 1 && !newState.currentPlayer.hasCalledLastCard) {
-                        val calledState = GameEngine.callLastCard(newState, bot.id)
-                        localGameState = calledState
-                        matchRepository.updateMatchState(roomId, calledState)
-                    } else {
-                        matchRepository.updateMatchState(roomId, newState)
-                    }
-
-                    if (newState.winner != null) {
-                        matchRepository.endMatch(roomId, newState.winner!!.id)
-                    }
-                }
-            } else {
-                // Draw a card
-                val newState = GameEngine.drawCard(gameState, 1)
-                localGameState = newState
-                matchRepository.updateMatchState(roomId, newState)
-
-                delay(BotAgent.getThinkingDelayMs() / 2)
-
+            gameStateMutex.withLock {
                 val updatedState = localGameState ?: return@launch
+                val updatedTopCard = updatedState.topCard ?: return@launch
                 val drawnCard = updatedState.currentPlayer.hand.lastOrNull()
                 if (drawnCard != null &&
-                    BotAgent.shouldPlayDrawnCard(drawnCard, updatedState.topCard!!, updatedState.currentColor)
+                    BotAgent.shouldPlayDrawnCard(drawnCard, updatedTopCard, updatedState.currentColor)
                 ) {
                     val chosenColor = if (drawnCard.type.isWild()) {
                         BotAgent.chooseWildColor(updatedState.currentPlayer.hand - drawnCard)
@@ -432,11 +446,12 @@ class OnlineGameViewModel(
                         localGameState = playedState
                         matchRepository.updateMatchState(roomId, playedState)
 
-                        if (playedState.winner != null) {
-                            matchRepository.endMatch(roomId, playedState.winner!!.id)
+                        val winnerId = playedState.winner?.id
+                        if (winnerId != null) {
+                            matchRepository.endMatch(roomId, winnerId)
                         }
                     }
-                } else {
+                } else if (drawnCard == null || !BotAgent.shouldPlayDrawnCard(drawnCard, updatedTopCard, updatedState.currentColor)) {
                     val passedState = GameEngine.passTurn(updatedState)
                     localGameState = passedState
                     matchRepository.updateMatchState(roomId, passedState)

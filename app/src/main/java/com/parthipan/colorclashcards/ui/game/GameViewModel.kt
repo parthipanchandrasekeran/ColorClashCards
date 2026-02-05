@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -143,7 +144,7 @@ class GameViewModel : ViewModel() {
                     )
                 }
 
-                _uiState.value = _uiState.value.copy(gameState = newState)
+                _uiState.update { it.copy(gameState = newState) }
             }
         }
     }
@@ -439,6 +440,7 @@ class GameViewModel : ViewModel() {
         if (state.gamePhase != GamePhase.PLAYING) return
         if (state.currentPlayer.id == humanPlayerId) return
         if (_uiState.value.isProcessingBotTurn) return
+        if (!state.currentPlayer.isBot) return
 
         processBotTurn()
     }

@@ -257,7 +257,7 @@ private fun PlayerTokensOverlay(
     onTokenClick: (Int) -> Unit
 ) {
     tokens.forEach { token ->
-        val position = getTokenPosition(token, color)
+        val position = getTokenBoardPosition(token, color)
         if (position != null) {
             LudoTokenView(
                 token = token,
@@ -267,24 +267,6 @@ private fun PlayerTokensOverlay(
                 boardPosition = position,
                 onClick = { onTokenClick(token.id) }
             )
-        }
-    }
-}
-
-/**
- * Get board position for a token.
- */
-private fun getTokenPosition(token: Token, color: LudoColor): BoardPosition? {
-    return when (token.state) {
-        TokenState.HOME -> {
-            LudoBoardPositions.getHomeBasePositions(color).getOrNull(token.id)
-        }
-        TokenState.ACTIVE -> {
-            LudoBoardPositions.getGridPosition(token.position, color)
-        }
-        TokenState.FINISHED -> {
-            // All finished tokens go to the center cell (7, 7)
-            LudoBoardPositions.getFinishPosition()
         }
     }
 }
@@ -311,136 +293,13 @@ private fun OfflinePlayersRow(
             val isCurrentTurn = player.id == currentTurnPlayerId
             val isLocalPlayer = player.id == localPlayerId
 
-            OfflinePlayerChip(
+            SharedPlayerChip(
                 player = player,
                 displayName = if (isLocalPlayer) "You" else player.name,
                 isCurrentTurn = isCurrentTurn,
                 modifier = Modifier.testTag("playerItem_${player.id}")
             )
         }
-    }
-}
-
-/**
- * Compact player chip showing color, name, and token counts.
- */
-@Composable
-private fun OfflinePlayerChip(
-    player: LudoPlayer,
-    displayName: String,
-    isCurrentTurn: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val playerColor = LudoBoardColors.getColor(player.color)
-    val homeCount = player.tokens.count { it.state == TokenState.HOME }
-    val activeCount = player.tokens.count { it.state == TokenState.ACTIVE }
-    val finishedCount = player.tokens.count { it.state == TokenState.FINISHED }
-
-    Card(
-        modifier = modifier
-            .then(
-                if (isCurrentTurn) {
-                    Modifier.border(2.dp, playerColor, RoundedCornerShape(12.dp))
-                } else Modifier
-            ),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isCurrentTurn) {
-                playerColor.copy(alpha = 0.15f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            }
-        ),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isCurrentTurn) 4.dp else 1.dp
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            // Turn indicator + Color dot
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .background(playerColor)
-                    .then(
-                        if (isCurrentTurn) {
-                            Modifier
-                                .border(2.dp, Color.White, CircleShape)
-                                .testTag("turnIndicator_${player.id}")
-                        } else Modifier
-                    )
-            )
-
-            // Name
-            Text(
-                text = displayName,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (isCurrentTurn) FontWeight.Bold else FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
-            )
-
-            // Vertical divider
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(16.dp)
-                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-            )
-
-            // Token counts: H/A/F
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OfflineTokenCountBadge(
-                    count = homeCount,
-                    label = "H",
-                    color = playerColor.copy(alpha = 0.4f)
-                )
-                OfflineTokenCountBadge(
-                    count = activeCount,
-                    label = "A",
-                    color = playerColor
-                )
-                OfflineTokenCountBadge(
-                    count = finishedCount,
-                    label = "F",
-                    color = Color(0xFF4CAF50)
-                )
-            }
-        }
-    }
-}
-
-/**
- * Small badge showing token count with label.
- */
-@Composable
-private fun OfflineTokenCountBadge(
-    count: Int,
-    label: String,
-    color: Color
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
-        Text(
-            text = "$count",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-        )
     }
 }
 

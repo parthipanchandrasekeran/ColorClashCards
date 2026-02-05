@@ -663,7 +663,7 @@ private fun LobbyPlayerCard(player: LudoRoomPlayer) {
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF4CAF50)),
+                        .background(LudoBoardColors.FinishedBadge),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

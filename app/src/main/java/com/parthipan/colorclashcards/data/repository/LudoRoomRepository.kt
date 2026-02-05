@@ -75,9 +75,13 @@ class LudoRoomRepository {
      * Join a room by room code.
      */
     suspend fun joinRoomByCode(roomCode: String): Result<LudoRoom> {
+        if (roomCode.isBlank() || roomCode.length != 6) {
+            return Result.failure(Exception("Invalid room code"))
+        }
         val userId = currentUserId ?: return Result.failure(Exception("Not signed in"))
 
         return try {
+            // Query stays outside transaction (Firestore limitation)
             val querySnapshot = roomsCollection
                 .whereEqualTo("roomCode", roomCode.uppercase())
                 .whereEqualTo("status", LudoRoomStatus.WAITING.name)
@@ -89,43 +93,44 @@ class LudoRoomRepository {
                 return Result.failure(Exception("Room not found or game already started"))
             }
 
-            val doc = querySnapshot.documents.first()
-            val room = LudoRoom.fromMap(doc.id, doc.data ?: emptyMap())
+            val docRef = roomsCollection.document(querySnapshot.documents.first().id)
 
-            // Check if already in room
-            if (room.players.any { it.odId == userId }) {
-                return Result.success(room)
-            }
+            // Use transaction for atomic capacity check + player add
+            val updatedRoom = firestore.runTransaction { transaction ->
+                val snapshot = transaction.get(docRef)
+                val room = LudoRoom.fromMap(snapshot.id, snapshot.data ?: emptyMap())
 
-            // Check if room is full
-            if (room.isFull()) {
-                return Result.failure(Exception("Room is full"))
-            }
+                // Check if already in room
+                if (room.players.any { it.odId == userId }) {
+                    return@runTransaction room
+                }
 
-            // Assign next available color
-            val usedColors = room.players.map { it.color }.toSet()
-            val availableColor = LudoColor.entries.first { it.name !in usedColors }
+                // Check if room is full (inside transaction to prevent race)
+                if (room.isFull()) {
+                    throw Exception("Room is full")
+                }
 
-            val newPlayer = LudoRoomPlayer(
-                odId = userId,
-                odisplayName = currentUserName,
-                photoUrl = currentUserPhoto,
-                color = availableColor.name,
-                isReady = false,
-                isHost = false,
-                isConnected = true,
-                lastActiveAt = Timestamp.now(),
-                joinedAt = Timestamp.now()
-            )
+                // Assign next available color
+                val usedColors = room.players.map { it.color }.toSet()
+                val availableColor = LudoColor.entries.first { it.name !in usedColors }
 
-            roomsCollection.document(doc.id).update(
-                "players", FieldValue.arrayUnion(newPlayer.toMap())
-            ).await()
+                val newPlayer = LudoRoomPlayer(
+                    odId = userId,
+                    odisplayName = currentUserName,
+                    photoUrl = currentUserPhoto,
+                    color = availableColor.name,
+                    isReady = false,
+                    isHost = false,
+                    isConnected = true,
+                    lastActiveAt = Timestamp.now(),
+                    joinedAt = Timestamp.now()
+                )
 
-            val updatedRoom = room.copy(
-                id = doc.id,
-                players = room.players + newPlayer
-            )
+                val updatedPlayers = room.players + newPlayer
+                transaction.update(docRef, "players", updatedPlayers.map { it.toMap() })
+
+                room.copy(id = snapshot.id, players = updatedPlayers)
+            }.await()
 
             Result.success(updatedRoom)
         } catch (e: Exception) {

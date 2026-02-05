@@ -34,6 +34,9 @@ import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import com.parthipan.colorclashcards.game.ludo.model.Token
 import com.parthipan.colorclashcards.game.ludo.model.TokenState
 
+/** Token diameter as a fraction of cell size. */
+private const val TOKEN_SIZE_RATIO = 0.7f
+
 /**
  * Renders a single Ludo token with animations.
  *
@@ -92,7 +95,7 @@ fun LudoTokenView(
     // Calculate pixel offset from board position, including stack offset
     val xOffset = (boardPosition.column * cellSize.value + cellSize.value / 2).dp + stackOffset.first
     val yOffset = (boardPosition.row * cellSize.value + cellSize.value / 2).dp + stackOffset.second
-    val tokenSize = cellSize * 0.7f * stackScale
+    val tokenSize = cellSize * TOKEN_SIZE_RATIO * stackScale
 
     Box(
         modifier = Modifier
@@ -227,73 +230,6 @@ fun PlayerTokensView(
                 stackScale = stackScale,
                 onClick = { onTokenClick(token.id) }
             )
-        }
-    }
-}
-
-/**
- * Calculate offsets for stacked tokens within a cell.
- * Returns a list of (x, y) offsets and a scale factor.
- *
- * Layout patterns:
- * - 1 token: centered, full size
- * - 2 tokens: side by side horizontally
- * - 3 tokens: triangle arrangement
- * - 4 tokens: 2x2 micro-grid
- */
-private fun calculateStackOffsets(count: Int, cellSize: Dp): Pair<List<Pair<Dp, Dp>>, Float> {
-    val quarterCell = cellSize.value / 4
-
-    return when (count) {
-        1 -> Pair(
-            listOf(Pair(0.dp, 0.dp)),
-            1f
-        )
-        2 -> Pair(
-            listOf(
-                Pair((-quarterCell * 0.6f).dp, 0.dp),  // Left
-                Pair((quarterCell * 0.6f).dp, 0.dp)    // Right
-            ),
-            0.75f
-        )
-        3 -> Pair(
-            listOf(
-                Pair(0.dp, (-quarterCell * 0.5f).dp),           // Top center
-                Pair((-quarterCell * 0.6f).dp, (quarterCell * 0.4f).dp),  // Bottom left
-                Pair((quarterCell * 0.6f).dp, (quarterCell * 0.4f).dp)    // Bottom right
-            ),
-            0.65f
-        )
-        else -> Pair(
-            // 4+ tokens: 2x2 grid (only use first 4 positions)
-            listOf(
-                Pair((-quarterCell * 0.5f).dp, (-quarterCell * 0.5f).dp),  // Top-left
-                Pair((quarterCell * 0.5f).dp, (-quarterCell * 0.5f).dp),   // Top-right
-                Pair((-quarterCell * 0.5f).dp, (quarterCell * 0.5f).dp),   // Bottom-left
-                Pair((quarterCell * 0.5f).dp, (quarterCell * 0.5f).dp)     // Bottom-right
-            ),
-            0.55f
-        )
-    }
-}
-
-/**
- * Get the board position for a token.
- */
-private fun getTokenBoardPosition(token: Token, color: LudoColor): BoardPosition? {
-    return when (token.state) {
-        TokenState.HOME -> {
-            // Get home base position based on token ID
-            LudoBoardPositions.getHomeBasePositions(color).getOrNull(token.id)
-        }
-        TokenState.ACTIVE -> {
-            LudoBoardPositions.getGridPosition(token.position, color)
-        }
-        TokenState.FINISHED -> {
-            // All finished tokens go to center (with slight offset based on ID)
-            val center = LudoBoardPositions.getFinishPosition()
-            // Offset slightly so they don't overlap completely
-            BoardPosition(center.column, center.row)
         }
     }
 }

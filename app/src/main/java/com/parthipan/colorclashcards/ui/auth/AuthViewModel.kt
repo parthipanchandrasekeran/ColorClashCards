@@ -33,11 +33,6 @@ class AuthViewModel(
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
-    // Web Client ID from Firebase Console
-    companion object {
-        const val WEB_CLIENT_ID = "7833973970-lfmejp264dnsbcj1eo4tmquofkci94hc.apps.googleusercontent.com"
-    }
-
     /**
      * Check if user is already signed in.
      */
@@ -60,9 +55,9 @@ class AuthViewModel(
     /**
      * Get Google Sign-In options.
      */
-    fun getGoogleSignInOptions(): GoogleSignInOptions {
+    fun getGoogleSignInOptions(webClientId: String): GoogleSignInOptions {
         return GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(WEB_CLIENT_ID)
+            .requestIdToken(webClientId)
             .requestEmail()
             .build()
     }

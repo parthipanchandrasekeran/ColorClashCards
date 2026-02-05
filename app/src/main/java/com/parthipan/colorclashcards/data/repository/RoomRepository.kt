@@ -44,7 +44,10 @@ class RoomRepository(
     /**
      * Create a new room.
      */
-    suspend fun createRoom(maxPlayers: Int, isPublic: Boolean): Result<Room> {
+    suspend fun createRoom(maxPlayers: Int, isPublic: Boolean, retryCount: Int = 0): Result<Room> {
+        if (retryCount > 5) {
+            return Result.failure(Exception("Failed to generate unique room code after multiple attempts"))
+        }
         val userId = currentUserId ?: return Result.failure(Exception("Not signed in"))
 
         return try {
@@ -59,7 +62,7 @@ class RoomRepository(
 
             if (!existingRoom.isEmpty) {
                 // Retry with new code (rare case)
-                return createRoom(maxPlayers, isPublic)
+                return createRoom(maxPlayers, isPublic, retryCount + 1)
             }
 
             val hostPlayer = RoomPlayer(
@@ -94,9 +97,13 @@ class RoomRepository(
      * Join a room by code.
      */
     suspend fun joinRoomByCode(roomCode: String): Result<Room> {
+        if (roomCode.isBlank() || roomCode.length != 6) {
+            return Result.failure(Exception("Invalid room code"))
+        }
         val userId = currentUserId ?: return Result.failure(Exception("Not signed in"))
 
         return try {
+            // Query stays outside transaction (Firestore limitation)
             val querySnapshot = roomsCollection
                 .whereEqualTo("roomCode", roomCode.uppercase())
                 .whereEqualTo("status", RoomStatus.WAITING.name)
@@ -108,20 +115,8 @@ class RoomRepository(
                 return Result.failure(Exception("Room not found or already started"))
             }
 
-            val doc = querySnapshot.documents.first()
-            val room = Room.fromMap(doc.id, doc.data ?: emptyMap())
+            val docRef = roomsCollection.document(querySnapshot.documents.first().id)
 
-            // Check if already in room
-            if (room.players.any { it.odId == userId }) {
-                return Result.success(room)
-            }
-
-            // Check if room is full
-            if (room.isFull()) {
-                return Result.failure(Exception("Room is full"))
-            }
-
-            // Add player to room
             val newPlayer = RoomPlayer(
                 odId = userId,
                 odisplayName = currentUserName,
@@ -131,11 +126,28 @@ class RoomRepository(
                 joinedAt = Timestamp.now()
             )
 
-            roomsCollection.document(doc.id).update(
-                "players", FieldValue.arrayUnion(newPlayer.toMap())
-            ).await()
+            // Use transaction for atomic capacity check + player add
+            val updatedRoom = firestore.runTransaction { transaction ->
+                val snapshot = transaction.get(docRef)
+                val room = Room.fromMap(snapshot.id, snapshot.data ?: emptyMap())
 
-            Result.success(room.copy(players = room.players + newPlayer))
+                // Check if already in room
+                if (room.players.any { it.odId == userId }) {
+                    return@runTransaction room
+                }
+
+                // Check if room is full (inside transaction to prevent race)
+                if (room.isFull()) {
+                    throw Exception("Room is full")
+                }
+
+                val updatedPlayers = room.players + newPlayer
+                transaction.update(docRef, "players", updatedPlayers.map { it.toMap() })
+
+                room.copy(players = updatedPlayers)
+            }.await()
+
+            Result.success(updatedRoom)
         } catch (e: Exception) {
             Result.failure(e)
         }

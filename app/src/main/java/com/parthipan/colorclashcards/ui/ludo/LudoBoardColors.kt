@@ -36,6 +36,9 @@ object LudoBoardColors {
     val TokenHighlight = Color(0xFFFFD54F)
     val TokenShadow = Color(0x40000000)
 
+    // Badge colors
+    val FinishedBadge = Color(0xFF4CAF50)
+
     /**
      * Get the primary color for a LudoColor.
      */

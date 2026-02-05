@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.parthipan.colorclashcards.R
 import com.parthipan.colorclashcards.ui.theme.CardBlue
 import com.parthipan.colorclashcards.ui.theme.CardGreen
 import com.parthipan.colorclashcards.ui.theme.CardRed
@@ -161,9 +162,10 @@ fun AuthScreen(
                     Button(
                         onClick = {
                             viewModel.setLoading()
+                            val webClientId = context.getString(R.string.default_web_client_id)
                             val googleSignInClient = GoogleSignIn.getClient(
                                 context,
-                                viewModel.getGoogleSignInOptions()
+                                viewModel.getGoogleSignInOptions(webClientId)
                             )
                             // Sign out first to ensure account picker shows
                             googleSignInClient.signOut().addOnCompleteListener {

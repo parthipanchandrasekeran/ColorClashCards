@@ -20,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -99,93 +100,6 @@ class LudoOfflineViewModel(
     }
 
     /**
-     * DEBUG: Create a game state with RED token in lane to test rendering.
-     * RED: 3 finished, 1 in lane (position 54)
-     * YELLOW: 1 finished, 3 active on ring
-     */
-    private fun createDebugGameState(): LudoGameState {
-        val redTokens = listOf(
-            Token(id = 0, state = TokenState.ACTIVE, position = 56), // In RED's lane - needs exactly 1 to finish (56+1=57)
-            Token(id = 1, state = TokenState.FINISHED, position = 57),
-            Token(id = 2, state = TokenState.FINISHED, position = 57),
-            Token(id = 3, state = TokenState.FINISHED, position = 57)
-        )
-        val redPlayer = LudoPlayer(
-            id = "human-red",
-            name = "You",
-            color = LudoColor.RED,
-            tokens = redTokens,
-            isBot = false
-        )
-
-        val yellowTokens = listOf(
-            Token(id = 0, state = TokenState.ACTIVE, position = 20),
-            Token(id = 1, state = TokenState.ACTIVE, position = 25),
-            Token(id = 2, state = TokenState.ACTIVE, position = 30),
-            Token(id = 3, state = TokenState.FINISHED, position = 57)
-        )
-        val yellowPlayer = LudoPlayer(
-            id = "bot-yellow",
-            name = "Bot 1",
-            color = LudoColor.YELLOW,
-            tokens = yellowTokens,
-            isBot = true
-        )
-
-        return LudoGameState(
-            players = listOf(redPlayer, yellowPlayer),
-            currentTurnPlayerId = redPlayer.id,
-            gameStatus = GameStatus.IN_PROGRESS,
-            canRollDice = true,
-            diceValue = null,
-            mustSelectToken = false
-        )
-    }
-
-    /**
-     * DEBUG: Create a game state with all RED tokens near finish.
-     * RED: 4 tokens in lane positions 53-56 (need 4, 3, 2, 1 to finish)
-     */
-    private fun createDebugNearFinishState(): LudoGameState {
-        val redTokens = listOf(
-            Token(id = 0, state = TokenState.ACTIVE, position = 54), // needs 3 to finish
-            Token(id = 1, state = TokenState.ACTIVE, position = 55), // needs 2 to finish
-            Token(id = 2, state = TokenState.ACTIVE, position = 56), // needs 1 to finish
-            Token(id = 3, state = TokenState.ACTIVE, position = 53)  // needs 4 to finish
-        )
-        val redPlayer = LudoPlayer(
-            id = "human-red",
-            name = "You",
-            color = LudoColor.RED,
-            tokens = redTokens,
-            isBot = false
-        )
-
-        val yellowTokens = listOf(
-            Token(id = 0, state = TokenState.ACTIVE, position = 20),
-            Token(id = 1, state = TokenState.ACTIVE, position = 25),
-            Token(id = 2, state = TokenState.ACTIVE, position = 30),
-            Token(id = 3, state = TokenState.ACTIVE, position = 35)
-        )
-        val yellowPlayer = LudoPlayer(
-            id = "bot-yellow",
-            name = "Bot 1",
-            color = LudoColor.YELLOW,
-            tokens = yellowTokens,
-            isBot = true
-        )
-
-        return LudoGameState(
-            players = listOf(redPlayer, yellowPlayer),
-            currentTurnPlayerId = redPlayer.id,
-            gameStatus = GameStatus.IN_PROGRESS,
-            canRollDice = true,
-            diceValue = null,
-            mustSelectToken = false
-        )
-    }
-
-    /**
      * Start the turn timer countdown.
      */
     private fun startTurnTimer() {
@@ -206,11 +120,13 @@ class LudoOfflineViewModel(
                 val progress = (remainingMs.toFloat() / (LudoOfflineUiState.TURN_TIMER_SECONDS * 1000f)).coerceIn(0f, 1f)
                 val isWarning = remainingSeconds <= LudoOfflineUiState.WARNING_THRESHOLD_SECONDS
 
-                _uiState.value = currentState.copy(
-                    timerRemainingSeconds = remainingSeconds,
-                    timerProgress = progress,
-                    isTimerWarning = isWarning
-                )
+                _uiState.update {
+                    it.copy(
+                        timerRemainingSeconds = remainingSeconds,
+                        timerProgress = progress,
+                        isTimerWarning = isWarning
+                    )
+                }
 
                 // Auto-skip when timer reaches 0
                 if (remainingSeconds <= 0) {
@@ -258,16 +174,18 @@ class LudoOfflineViewModel(
         // Advance to next player
         val newState = LudoEngine.advanceToNextPlayer(gameState)
 
-        _uiState.value = currentState.copy(
-            gameState = newState,
-            diceValue = null,
-            mustSelectToken = false,
-            movableTokenIds = emptyList(),
-            canRoll = false,
-            message = "Time's up! Turn skipped.",
-            isHumanTurn = newState.currentTurnPlayerId == currentState.humanPlayerId,
-            showTimer = false
-        )
+        _uiState.update {
+            it.copy(
+                gameState = newState,
+                diceValue = null,
+                mustSelectToken = false,
+                movableTokenIds = emptyList(),
+                canRoll = false,
+                message = "Time's up! Turn skipped.",
+                isHumanTurn = newState.currentTurnPlayerId == it.humanPlayerId,
+                showTimer = false
+            )
+        }
 
         // Trigger bot turn if applicable
         if (newState.currentPlayer.isBot && !newState.isGameOver) {
@@ -364,22 +282,24 @@ class LudoOfflineViewModel(
             else -> "Rolled $diceValue"
         }
 
-        _uiState.value = currentState.copy(
-            gameState = newState,
-            isRolling = false,
-            diceValue = diceValue,
-            canRoll = newState.canRollDice && !newState.mustSelectToken,
-            mustSelectToken = newState.mustSelectToken,
-            movableTokenIds = if (newState.mustSelectToken) movableIds else emptyList(),
-            message = message,
-            isHumanTurn = newState.currentTurnPlayerId == currentState.humanPlayerId
-        )
+        _uiState.update {
+            it.copy(
+                gameState = newState,
+                isRolling = false,
+                diceValue = diceValue,
+                canRoll = newState.canRollDice && !newState.mustSelectToken,
+                mustSelectToken = newState.mustSelectToken,
+                movableTokenIds = if (newState.mustSelectToken) movableIds else emptyList(),
+                message = message,
+                isHumanTurn = newState.currentTurnPlayerId == it.humanPlayerId
+            )
+        }
 
         // Check if turn was skipped (no moves available or three 6s)
         if (!newState.mustSelectToken && newState.currentTurnPlayerId != currentState.humanPlayerId) {
             // Turn passed to bot, stop timer and trigger bot turn
             stopTurnTimer()
-            _uiState.value = _uiState.value.copy(showTimer = false)
+            _uiState.update { it.copy(showTimer = false) }
             botJob = viewModelScope.launch {
                 delay(1000)
                 processBotTurn()
@@ -458,9 +378,9 @@ class LudoOfflineViewModel(
         for (step in 1..diceValue) {
             val nextPos = currentPos + 1
 
-            // If reaching finish position (57), add center and stop
+            // If reaching finish position (57), add color's triangle and stop
             if (nextPos >= 57) {
-                positions.add(LudoBoardPositions.getFinishPosition())
+                positions.add(LudoBoardPositions.getFinishPosition(color))
                 break
             }
 

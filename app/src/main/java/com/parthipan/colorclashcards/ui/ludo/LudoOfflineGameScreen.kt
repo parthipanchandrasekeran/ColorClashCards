@@ -232,46 +232,6 @@ private data class TokenWithContext(
 )
 
 /**
- * Calculate offsets for stacked tokens within a cell.
- * Returns a list of (x, y) offsets and a scale factor.
- */
-private fun calculateStackOffsets(count: Int, cellSize: Dp): Pair<List<Pair<Dp, Dp>>, Float> {
-    val quarterCell = cellSize.value / 4
-
-    return when (count) {
-        1 -> Pair(
-            listOf(Pair(0.dp, 0.dp)),
-            1f
-        )
-        2 -> Pair(
-            listOf(
-                Pair((-quarterCell * 0.6f).dp, 0.dp),  // Left
-                Pair((quarterCell * 0.6f).dp, 0.dp)    // Right
-            ),
-            0.75f
-        )
-        3 -> Pair(
-            listOf(
-                Pair(0.dp, (-quarterCell * 0.5f).dp),           // Top center
-                Pair((-quarterCell * 0.6f).dp, (quarterCell * 0.4f).dp),  // Bottom left
-                Pair((quarterCell * 0.6f).dp, (quarterCell * 0.4f).dp)    // Bottom right
-            ),
-            0.65f
-        )
-        else -> Pair(
-            // 4+ tokens: 2x2 grid (only use first 4 positions)
-            listOf(
-                Pair((-quarterCell * 0.5f).dp, (-quarterCell * 0.5f).dp),  // Top-left
-                Pair((quarterCell * 0.5f).dp, (-quarterCell * 0.5f).dp),   // Top-right
-                Pair((-quarterCell * 0.5f).dp, (quarterCell * 0.5f).dp),   // Bottom-left
-                Pair((quarterCell * 0.5f).dp, (quarterCell * 0.5f).dp)     // Bottom-right
-            ),
-            0.55f
-        )
-    }
-}
-
-/**
  * Ludo board with premium token interaction.
  */
 @Composable
@@ -295,7 +255,7 @@ private fun OfflineLudoBoardWithInteraction(
     val allTokensWithContext = remember(gameState) {
         gameState.players.flatMap { player ->
             player.tokens.mapNotNull { token ->
-                val position = getOfflineTokenBoardPosition(token, player.color)
+                val position = getTokenBoardPosition(token, player.color)
                 if (position != null) {
                     // HOME tokens: compute stable center from getHomeSlotOffset
                     val homeCenter = if (token.state == TokenState.HOME) {
@@ -383,25 +343,6 @@ private fun OfflineLudoBoardWithInteraction(
     }
 }
 
-
-/**
- * Get board position for a token.
- */
-private fun getOfflineTokenBoardPosition(token: Token, color: LudoColor): BoardPosition? {
-    return when (token.state) {
-        TokenState.HOME -> {
-            LudoBoardPositions.getHomeBasePositions(color).getOrNull(token.id)
-        }
-        TokenState.ACTIVE -> {
-            LudoBoardPositions.getGridPosition(token.position, color)
-        }
-        TokenState.FINISHED -> {
-            // All finished tokens go to the center cell (7, 7)
-            // They will visually stack there
-            LudoBoardPositions.getFinishPosition()
-        }
-    }
-}
 
 /**
  * Compact game controls with dice, timer ring, and status - reduced height, horizontal layout.
@@ -501,132 +442,13 @@ private fun OfflineBotPlayersRow(
             val isCurrentTurn = player.id == currentTurnPlayerId
             val isHumanPlayer = player.id == humanPlayerId
 
-            OfflineBotPlayerChip(
+            SharedPlayerChip(
                 player = player,
                 displayName = if (isHumanPlayer) "You" else player.name,
                 isCurrentTurn = isCurrentTurn,
                 modifier = Modifier.testTag("playerItem_${player.id}")
             )
         }
-    }
-}
-
-/**
- * Compact player chip showing color, name, and token counts.
- */
-@Composable
-private fun OfflineBotPlayerChip(
-    player: LudoPlayer,
-    displayName: String,
-    isCurrentTurn: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val playerColor = LudoBoardColors.getColor(player.color)
-    val homeCount = player.tokens.count { it.state == TokenState.HOME }
-    val activeCount = player.tokens.count { it.state == TokenState.ACTIVE }
-    val finishedCount = player.tokens.count { it.state == TokenState.FINISHED }
-
-    Card(
-        modifier = modifier
-            .then(
-                if (isCurrentTurn) {
-                    Modifier.border(2.dp, playerColor, RoundedCornerShape(12.dp))
-                } else Modifier
-            ),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isCurrentTurn) {
-                playerColor.copy(alpha = 0.15f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            }
-        ),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isCurrentTurn) 4.dp else 1.dp
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            // Turn indicator + Color dot
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .background(playerColor)
-                    .then(
-                        if (isCurrentTurn) {
-                            Modifier
-                                .border(2.dp, Color.White, CircleShape)
-                                .testTag("turnIndicator_${player.id}")
-                        } else Modifier
-                    )
-            )
-
-            // Name
-            Text(
-                text = displayName,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (isCurrentTurn) FontWeight.Bold else FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
-            )
-
-            // Vertical divider
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(16.dp)
-                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-            )
-
-            // Token counts: H/A/F
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OfflineBotTokenCountBadge(
-                    count = homeCount,
-                    color = playerColor.copy(alpha = 0.4f)
-                )
-                OfflineBotTokenCountBadge(
-                    count = activeCount,
-                    color = playerColor
-                )
-                OfflineBotTokenCountBadge(
-                    count = finishedCount,
-                    color = Color(0xFF4CAF50)
-                )
-            }
-        }
-    }
-}
-
-/**
- * Small badge showing token count.
- */
-@Composable
-private fun OfflineBotTokenCountBadge(
-    count: Int,
-    color: Color
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
-        Text(
-            text = "$count",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-        )
     }
 }
 

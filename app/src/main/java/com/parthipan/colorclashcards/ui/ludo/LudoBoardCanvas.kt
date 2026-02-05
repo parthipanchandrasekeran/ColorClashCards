@@ -1,5 +1,6 @@
 package com.parthipan.colorclashcards.ui.ludo
 
+import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +21,12 @@ import androidx.compose.ui.layout.onSizeChanged
 import com.parthipan.colorclashcards.game.ludo.engine.LudoBoard
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 
+/** Grid size for the Ludo board (15x15). */
+private const val BOARD_GRID_SIZE = 15
+
+/** Size of each home base in cells (6x6 corners). */
+private const val HOME_SIZE_CELLS = 6
+
 /**
  * Classic Ludo Board Canvas (15x15 grid)
  *
@@ -35,6 +42,8 @@ fun LudoBoardCanvas(
 ) {
     // Single source of truth for board size - measured during layout phase
     var measuredBoardSize by remember { mutableStateOf(0f) }
+    // Reusable Path to avoid allocations during draw
+    val reusablePath = remember { Path() }
 
     Canvas(
         modifier = modifier
@@ -52,7 +61,7 @@ fun LudoBoardCanvas(
         // Use measuredBoardSize from layout phase for perfect consistency
         // Fall back to size.minDimension only if not yet measured
         val canvasBoardSize = if (measuredBoardSize > 0f) measuredBoardSize else size.minDimension
-        val cellSize = canvasBoardSize / 15f
+        val cellSize = canvasBoardSize / BOARD_GRID_SIZE
 
         // Draw board background
         drawRect(
@@ -75,17 +84,11 @@ fun LudoBoardCanvas(
         drawHomeLane(LudoColor.RED, cellSize, excludeCenter = true)
         drawHomeLane(LudoColor.BLUE, cellSize, excludeCenter = true)
 
-        // Draw center finish area
-        drawCenterFinish(cellSize)
-
-        // Draw lane cells that are inside center area (on top of triangles)
-        drawHomeLane(LudoColor.GREEN, cellSize, onlyCenterCells = true)
-        drawHomeLane(LudoColor.YELLOW, cellSize, onlyCenterCells = true)
-        drawHomeLane(LudoColor.RED, cellSize, onlyCenterCells = true)
-        drawHomeLane(LudoColor.BLUE, cellSize, onlyCenterCells = true)
+        // Draw center finish area (clean triangles, no grid lines)
+        drawCenterFinish(cellSize, reusablePath)
 
         // Draw safe cells (stars) and start cells (arrows)
-        drawSafeCells(cellSize)
+        drawSafeCells(cellSize, reusablePath)
 
         // Draw grid border
         drawTrackGridLines(cellSize)
@@ -101,7 +104,7 @@ private fun DrawScope.drawHomeBase(
     y: Float,
     cellSize: Float
 ) {
-    val baseSize = 6 * cellSize
+    val baseSize = HOME_SIZE_CELLS * cellSize
     val playerColor = LudoBoardColors.getColor(color)
     val lightColor = LudoBoardColors.getLightColor(color)
 
@@ -177,13 +180,13 @@ private fun DrawScope.drawTrack(cellSize: Float) {
 
     // Right horizontal arm (columns 9-14, rows 6-8)
     for (row in 6 until 9) {
-        for (col in 9 until 15) {
+        for (col in 9 until BOARD_GRID_SIZE) {
             drawTrackCell(col * cellSize, row * cellSize, cellSize)
         }
     }
 
     // Bottom vertical arm (columns 6-8, rows 9-14)
-    for (row in 9 until 15) {
+    for (row in 9 until BOARD_GRID_SIZE) {
         for (col in 6 until 9) {
             drawTrackCell(col * cellSize, row * cellSize, cellSize)
         }
@@ -259,10 +262,10 @@ private fun DrawScope.drawColoredCell(x: Float, y: Float, cellSize: Float, color
  * Center area is cells (6,6) to (8,8) - a 3x3 grid.
  * Center point is at cell (7,7) center = (7.5, 7.5) in cell units.
  */
-private fun DrawScope.drawCenterFinish(cellSize: Float) {
+private fun DrawScope.drawCenterFinish(cellSize: Float, reusablePath: Path) {
     // Center area boundaries (in pixels)
-    val left = 6 * cellSize
-    val top = 6 * cellSize
+    val left = HOME_SIZE_CELLS * cellSize
+    val top = HOME_SIZE_CELLS * cellSize
     val right = 9 * cellSize
     val bottom = 9 * cellSize
 
@@ -276,7 +279,8 @@ private fun DrawScope.drawCenterFinish(cellSize: Float) {
         centerX, centerY,
         left, top,
         left, bottom,
-        LudoBoardColors.getColor(LudoColor.GREEN)
+        LudoBoardColors.getColor(LudoColor.GREEN),
+        reusablePath
     )
 
     // YELLOW: top triangle (apex at center, base on top edge)
@@ -284,7 +288,8 @@ private fun DrawScope.drawCenterFinish(cellSize: Float) {
         centerX, centerY,
         left, top,
         right, top,
-        LudoBoardColors.getColor(LudoColor.YELLOW)
+        LudoBoardColors.getColor(LudoColor.YELLOW),
+        reusablePath
     )
 
     // BLUE: right triangle (apex at center, base on right edge)
@@ -292,7 +297,8 @@ private fun DrawScope.drawCenterFinish(cellSize: Float) {
         centerX, centerY,
         right, top,
         right, bottom,
-        LudoBoardColors.getColor(LudoColor.BLUE)
+        LudoBoardColors.getColor(LudoColor.BLUE),
+        reusablePath
     )
 
     // RED: bottom triangle (apex at center, base on bottom edge)
@@ -300,7 +306,8 @@ private fun DrawScope.drawCenterFinish(cellSize: Float) {
         centerX, centerY,
         left, bottom,
         right, bottom,
-        LudoBoardColors.getColor(LudoColor.RED)
+        LudoBoardColors.getColor(LudoColor.RED),
+        reusablePath
     )
 }
 
@@ -311,28 +318,28 @@ private fun DrawScope.drawTriangle(
     apexX: Float, apexY: Float,
     baseX1: Float, baseY1: Float,
     baseX2: Float, baseY2: Float,
-    color: Color
+    color: Color,
+    reusablePath: Path
 ) {
-    val path = Path().apply {
-        moveTo(apexX, apexY)
-        lineTo(baseX1, baseY1)
-        lineTo(baseX2, baseY2)
-        close()
-    }
+    reusablePath.reset()
+    reusablePath.moveTo(apexX, apexY)
+    reusablePath.lineTo(baseX1, baseY1)
+    reusablePath.lineTo(baseX2, baseY2)
+    reusablePath.close()
 
-    drawPath(path = path, color = color, style = Fill)
-    drawPath(path = path, color = LudoBoardColors.TrackBorder, style = Stroke(width = 2f))
+    drawPath(path = reusablePath, color = color, style = Fill)
+    drawPath(path = reusablePath, color = LudoBoardColors.TrackBorder, style = Stroke(width = 2f))
 }
 
 /**
  * Draw safe cells (star positions) and start cells (arrows) on the track.
  */
-private fun DrawScope.drawSafeCells(cellSize: Float) {
+private fun DrawScope.drawSafeCells(cellSize: Float, reusablePath: Path) {
     // Start cells (colored with arrow/star)
     LudoColor.entries.forEach { color ->
         val startCell = LudoBoard.START_CELL_BY_COLOR[color] ?: return@forEach
         val (row, col) = startCell
-        drawStartingCell(col * cellSize, row * cellSize, cellSize, LudoBoardColors.getColor(color))
+        drawStartingCell(col * cellSize, row * cellSize, cellSize, LudoBoardColors.getColor(color), reusablePath)
     }
 
     // Star positions derived from the canonical SAFE_CELLS, excluding start cells.
@@ -344,7 +351,7 @@ private fun DrawScope.drawSafeCells(cellSize: Float) {
         // Guard: verify star position is on visible track (not in any home area)
         val isOnTrack = isPositionOnTrack(row, col)
         if (isOnTrack) {
-            drawSafeStarCell(col * cellSize, row * cellSize, cellSize)
+            drawSafeStarCell(col * cellSize, row * cellSize, cellSize, reusablePath)
         }
     }
 }
@@ -373,7 +380,7 @@ private fun isPositionOnTrack(row: Int, col: Int): Boolean {
 /**
  * Draw a starting cell with star indicator.
  */
-private fun DrawScope.drawStartingCell(x: Float, y: Float, cellSize: Float, color: Color) {
+private fun DrawScope.drawStartingCell(x: Float, y: Float, cellSize: Float, color: Color, reusablePath: Path) {
     drawRect(
         color = color,
         topLeft = Offset(x, y),
@@ -385,7 +392,7 @@ private fun DrawScope.drawStartingCell(x: Float, y: Float, cellSize: Float, colo
     val centerY = y + cellSize / 2
     val starRadius = cellSize * 0.3f
 
-    drawStar(centerX, centerY, starRadius, Color.White)
+    drawStar(centerX, centerY, starRadius, Color.White, reusablePath)
 
     drawRect(
         color = LudoBoardColors.TrackBorder,
@@ -398,19 +405,19 @@ private fun DrawScope.drawStartingCell(x: Float, y: Float, cellSize: Float, colo
 /**
  * Draw a safe cell with star.
  */
-private fun DrawScope.drawSafeStarCell(x: Float, y: Float, cellSize: Float) {
+private fun DrawScope.drawSafeStarCell(x: Float, y: Float, cellSize: Float, reusablePath: Path) {
     val centerX = x + cellSize / 2
     val centerY = y + cellSize / 2
     val starRadius = cellSize * 0.35f
 
-    drawStar(centerX, centerY, starRadius, LudoBoardColors.SafeCell)
+    drawStar(centerX, centerY, starRadius, LudoBoardColors.SafeCell, reusablePath)
 }
 
 /**
  * Draw a 5-pointed star.
  */
-private fun DrawScope.drawStar(cx: Float, cy: Float, radius: Float, color: Color) {
-    val path = Path()
+private fun DrawScope.drawStar(cx: Float, cy: Float, radius: Float, color: Color, reusablePath: Path) {
+    reusablePath.reset()
     val outerRadius = radius
     val innerRadius = radius * 0.5f
     val points = 5
@@ -422,22 +429,22 @@ private fun DrawScope.drawStar(cx: Float, cy: Float, radius: Float, color: Color
         val y = cy - (r * kotlin.math.sin(angle)).toFloat()
 
         if (i == 0) {
-            path.moveTo(x, y)
+            reusablePath.moveTo(x, y)
         } else {
-            path.lineTo(x, y)
+            reusablePath.lineTo(x, y)
         }
     }
-    path.close()
+    reusablePath.close()
 
-    drawPath(path = path, color = color, style = Fill)
-    drawPath(path = path, color = LudoBoardColors.TrackBorder, style = Stroke(width = 1f))
+    drawPath(path = reusablePath, color = color, style = Fill)
+    drawPath(path = reusablePath, color = LudoBoardColors.TrackBorder, style = Stroke(width = 1f))
 }
 
 /**
  * Draw grid lines for the track areas.
  */
 private fun DrawScope.drawTrackGridLines(cellSize: Float) {
-    val boardSize = 15 * cellSize
+    val boardSize = BOARD_GRID_SIZE * cellSize
     drawRect(
         color = LudoBoardColors.TrackBorder,
         topLeft = Offset(0f, 0f),
@@ -484,14 +491,14 @@ object LudoBoardPositions {
 
             // DEFENSIVE: Verify lane index is valid (0-5)
             if (laneIndex !in 0..5) {
-                println("[LudoBoardPositions] ERROR: Invalid lane index $laneIndex for position $relativePosition")
+                Log.e("LudoBoardPositions", "Invalid lane index $laneIndex for position $relativePosition")
                 return null
             }
 
             // Get the lane cell for THIS color (not any other color)
             val cell = LudoBoard.getLaneCell(color, laneIndex)
             if (cell == null) {
-                println("[LudoBoardPositions] ERROR: No lane cell for $color at index $laneIndex")
+                Log.e("LudoBoardPositions", "No lane cell for $color at index $laneIndex")
                 return null
             }
 
@@ -501,10 +508,10 @@ object LudoBoardPositions {
                     val otherLaneCells = LudoBoard.LANE_CELLS_BY_COLOR[otherColor] ?: continue
                     if (cell in otherLaneCells) {
                         // This should NEVER happen - lanes should be disjoint
-                        val errorMsg = "[LudoBoardPositions] FATAL: $color lane cell $cell " +
+                        val errorMsg = "$color lane cell $cell " +
                             "at index $laneIndex is also in ${otherColor}'s lane! " +
                             "This is a board configuration error."
-                        println(errorMsg)
+                        Log.e("LudoBoardPositions", errorMsg)
                         throw IllegalStateException(errorMsg)
                     }
                 }
@@ -542,7 +549,7 @@ object LudoBoardPositions {
     fun getHomeSlotOffset(color: LudoColor, slotIndex: Int): Pair<Float, Float> {
         require(slotIndex in 0..3) { "slotIndex must be 0..3" }
 
-        // Home-square origin on the 15×15 grid (in cell units)
+        // Home-square origin on the board grid (in cell units)
         val (originCol, originRow) = when (color) {
             LudoColor.GREEN  -> 0f to 0f
             LudoColor.YELLOW -> 9f to 0f
@@ -550,7 +557,7 @@ object LudoBoardPositions {
             LudoColor.BLUE   -> 9f to 9f
         }
 
-        val homeSize = 6f // cells
+        val homeSize = HOME_SIZE_CELLS.toFloat()
 
         // 2×2 slot grid inside the home square
         val col = slotIndex % 2
@@ -564,7 +571,20 @@ object LudoBoardPositions {
     }
 
     /**
-     * Get the center finish position.
+     * Get the finish position for a color (centroid of that color's triangle).
+     * Each color's finished tokens go to their own triangle area in the center.
+     */
+    fun getFinishPosition(color: LudoColor): BoardPosition {
+        return when (color) {
+            LudoColor.RED -> BoardPosition(7, 8)    // Bottom triangle
+            LudoColor.GREEN -> BoardPosition(6, 7)  // Left triangle
+            LudoColor.YELLOW -> BoardPosition(7, 6) // Top triangle
+            LudoColor.BLUE -> BoardPosition(8, 7)   // Right triangle
+        }
+    }
+
+    /**
+     * Get the center finish position (color-unaware fallback).
      */
     fun getFinishPosition(): BoardPosition {
         return BoardPosition(LudoBoard.CENTER_CELL.second, LudoBoard.CENTER_CELL.first)

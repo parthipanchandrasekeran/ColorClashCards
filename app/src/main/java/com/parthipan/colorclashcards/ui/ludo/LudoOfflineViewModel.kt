@@ -6,9 +6,12 @@ import com.parthipan.colorclashcards.game.ludo.engine.LudoBotAgent
 import com.parthipan.colorclashcards.game.ludo.engine.LudoEngine
 import com.parthipan.colorclashcards.game.ludo.engine.MoveResult
 import com.parthipan.colorclashcards.game.ludo.model.GameStatus
+import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import com.parthipan.colorclashcards.game.ludo.model.LudoGameState
 import com.parthipan.colorclashcards.game.ludo.model.LudoMove
+import com.parthipan.colorclashcards.game.ludo.model.LudoPlayer
 import com.parthipan.colorclashcards.game.ludo.model.MoveType
+import com.parthipan.colorclashcards.game.ludo.model.Token
 import com.parthipan.colorclashcards.game.ludo.model.TokenState
 import com.parthipan.colorclashcards.util.SystemTimeProvider
 import com.parthipan.colorclashcards.util.TimeProvider
@@ -75,7 +78,7 @@ class LudoOfflineViewModel(
     fun initializeGame(botCount: Int, difficulty: String) {
         stopAllJobs()
 
-        val gameState = LudoEngine.createOfflineGame("You", botCount)
+        val gameState = LudoGameState.createOfflineGame("You", botCount)
         val humanPlayerId = gameState.players.first { !it.isBot }.id
         val now = timeProvider.currentTimeMillis()
 
@@ -93,6 +96,93 @@ class LudoOfflineViewModel(
         )
 
         startTurnTimer()
+    }
+
+    /**
+     * DEBUG: Create a game state with RED token in lane to test rendering.
+     * RED: 3 finished, 1 in lane (position 54)
+     * YELLOW: 1 finished, 3 active on ring
+     */
+    private fun createDebugGameState(): LudoGameState {
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 56), // In RED's lane - needs exactly 1 to finish (56+1=57)
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
+        )
+        val redPlayer = LudoPlayer(
+            id = "human-red",
+            name = "You",
+            color = LudoColor.RED,
+            tokens = redTokens,
+            isBot = false
+        )
+
+        val yellowTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 20),
+            Token(id = 1, state = TokenState.ACTIVE, position = 25),
+            Token(id = 2, state = TokenState.ACTIVE, position = 30),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
+        )
+        val yellowPlayer = LudoPlayer(
+            id = "bot-yellow",
+            name = "Bot 1",
+            color = LudoColor.YELLOW,
+            tokens = yellowTokens,
+            isBot = true
+        )
+
+        return LudoGameState(
+            players = listOf(redPlayer, yellowPlayer),
+            currentTurnPlayerId = redPlayer.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            canRollDice = true,
+            diceValue = null,
+            mustSelectToken = false
+        )
+    }
+
+    /**
+     * DEBUG: Create a game state with all RED tokens near finish.
+     * RED: 4 tokens in lane positions 53-56 (need 4, 3, 2, 1 to finish)
+     */
+    private fun createDebugNearFinishState(): LudoGameState {
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 54), // needs 3 to finish
+            Token(id = 1, state = TokenState.ACTIVE, position = 55), // needs 2 to finish
+            Token(id = 2, state = TokenState.ACTIVE, position = 56), // needs 1 to finish
+            Token(id = 3, state = TokenState.ACTIVE, position = 53)  // needs 4 to finish
+        )
+        val redPlayer = LudoPlayer(
+            id = "human-red",
+            name = "You",
+            color = LudoColor.RED,
+            tokens = redTokens,
+            isBot = false
+        )
+
+        val yellowTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 20),
+            Token(id = 1, state = TokenState.ACTIVE, position = 25),
+            Token(id = 2, state = TokenState.ACTIVE, position = 30),
+            Token(id = 3, state = TokenState.ACTIVE, position = 35)
+        )
+        val yellowPlayer = LudoPlayer(
+            id = "bot-yellow",
+            name = "Bot 1",
+            color = LudoColor.YELLOW,
+            tokens = yellowTokens,
+            isBot = true
+        )
+
+        return LudoGameState(
+            players = listOf(redPlayer, yellowPlayer),
+            currentTurnPlayerId = redPlayer.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            canRollDice = true,
+            diceValue = null,
+            mustSelectToken = false
+        )
     }
 
     /**
@@ -367,7 +457,12 @@ class LudoOfflineViewModel(
         var currentPos = token.position
         for (step in 1..diceValue) {
             val nextPos = currentPos + 1
-            if (nextPos > 56) break
+
+            // If reaching finish position (57), add center and stop
+            if (nextPos >= 57) {
+                positions.add(LudoBoardPositions.getFinishPosition())
+                break
+            }
 
             val boardPos = LudoBoardPositions.getGridPosition(nextPos, color)
             boardPos?.let { positions.add(it) }
@@ -428,41 +523,60 @@ class LudoOfflineViewModel(
     private fun handleMoveSuccess(result: MoveResult.Success) {
         val currentState = _uiState.value
         val move = result.move
+        var gameState = result.newState
+        var gameOver = result.hasWon
 
-        // Handle player finished (Mode B: not full game over yet)
-        val message = if (result.playerFinished && !result.hasWon) {
-            val rank = result.newState.getPlayerRank(result.move.playerId)
-            val finishedPlayer = result.newState.getPlayer(result.move.playerId)
-            "${finishedPlayer?.name} finished in position $rank!"
-        } else {
-            buildMoveMessage(move, result.bonusTurn, result.hasWon)
+        // Defensive check: verify win by token state (not just result.hasWon)
+        // This catches edge cases where the engine's hasWon flag is incorrect
+        if (!gameOver && gameState.players.size <= 2) {
+            val finishedPlayer = gameState.getPlayerWithAllTokensFinished()
+            if (finishedPlayer != null && gameState.winnerId == null) {
+                // Force game end based on token state
+                gameState = gameState.copy(
+                    winnerId = finishedPlayer.id,
+                    gameStatus = GameStatus.FINISHED,
+                    canRollDice = false,
+                    finishOrder = if (finishedPlayer.id !in gameState.finishOrder)
+                        gameState.finishOrder + finishedPlayer.id else gameState.finishOrder
+                )
+                gameOver = true
+            }
         }
 
-        val isStillHumanTurn = result.newState.currentTurnPlayerId == currentState.humanPlayerId
+        // Handle player finished (Mode B: not full game over yet)
+        val message = if (result.playerFinished && !gameOver) {
+            val rank = gameState.getPlayerRank(result.move.playerId)
+            val finishedPlayer = gameState.getPlayer(result.move.playerId)
+            "${finishedPlayer?.name} finished in position $rank!"
+        } else {
+            buildMoveMessage(move, result.bonusTurn, gameOver)
+        }
+
+        val isStillHumanTurn = gameState.currentTurnPlayerId == currentState.humanPlayerId
 
         // Build rankings when game is fully over
-        val rankings = if (result.hasWon && result.newState.players.size > 2) {
-            result.newState.finishOrder.mapIndexed { index, playerId ->
-                val name = result.newState.getPlayer(playerId)?.name ?: "Unknown"
+        val rankings = if (gameOver && gameState.players.size > 2) {
+            gameState.finishOrder.mapIndexed { index, playerId ->
+                val name = gameState.getPlayer(playerId)?.name ?: "Unknown"
                 Pair("#${index + 1}", name)
             }
         } else null
 
         _uiState.value = currentState.copy(
-            gameState = result.newState,
+            gameState = gameState,
             diceValue = null,
             mustSelectToken = false,
             movableTokenIds = emptyList(),
             isRolling = false, // Ensure rolling state is cleared
-            canRoll = result.bonusTurn && !result.hasWon,
+            canRoll = result.bonusTurn && !gameOver,
             message = message,
             isHumanTurn = isStillHumanTurn,
-            showWinDialog = result.hasWon,
-            winnerName = if (result.hasWon) {
-                result.newState.winner?.name
+            showWinDialog = gameOver,
+            winnerName = if (gameOver) {
+                gameState.winner?.name
             } else null,
             rankings = rankings,
-            showTimer = isStillHumanTurn && !result.hasWon,
+            showTimer = isStillHumanTurn && !gameOver,
             // Clear token interaction state
             selectedTokenId = null,
             previewPath = emptyList(),
@@ -470,7 +584,7 @@ class LudoOfflineViewModel(
             animatingTokenId = null
         )
 
-        if (result.hasWon) {
+        if (gameOver) {
             stopAllJobs()
             return
         }

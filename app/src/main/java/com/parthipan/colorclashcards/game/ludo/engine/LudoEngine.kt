@@ -32,6 +32,40 @@ object LudoEngine {
         // Defensive guard — prevent rolling after game ended
         if (state.isGameOver) return state
 
+        // Defensive guard — check if ANY player has all 4 tokens FINISHED (token state check)
+        // This catches edge cases where winnerId wasn't set correctly
+        val finishedPlayer = state.players.find { it.finishedTokenCount() == LudoGameState.TOKENS_PER_PLAYER }
+        if (finishedPlayer != null && state.winnerId == null) {
+            log("[LudoEngine] Defensive win detection: ${finishedPlayer.name} has all tokens FINISHED")
+            if (state.players.size <= 2) {
+                // MODE A: 2-player - immediate end
+                return state.copy(
+                    winnerId = finishedPlayer.id,
+                    gameStatus = GameStatus.FINISHED,
+                    canRollDice = false,
+                    finishOrder = if (finishedPlayer.id !in state.finishOrder)
+                        state.finishOrder + finishedPlayer.id else state.finishOrder
+                )
+            } else {
+                // MODE B: 3-4 players - check if game should end
+                val updatedFinishOrder = if (finishedPlayer.id !in state.finishOrder)
+                    state.finishOrder + finishedPlayer.id else state.finishOrder
+                val activeCount = state.players.count { !it.hasWon() }
+                if (activeCount <= 1) {
+                    val lastPlayer = state.players.find { !it.hasWon() }
+                    val finalOrder = if (lastPlayer != null && lastPlayer.id !in updatedFinishOrder)
+                        updatedFinishOrder + lastPlayer.id else updatedFinishOrder
+                    return state.copy(
+                        winnerId = updatedFinishOrder.first(),
+                        gameStatus = GameStatus.FINISHED,
+                        canRollDice = false,
+                        finishOrder = finalOrder
+                    )
+                }
+                // Game continues in Mode B - don't return, let normal flow handle turn advancement
+            }
+        }
+
         val currentPlayer = state.currentPlayer
 
         // Finished player shouldn't roll — advance to next
@@ -289,6 +323,24 @@ object LudoEngine {
     }
 
     private fun calculateMoveInternal(token: Token, diceValue: Int, color: LudoColor): MoveDetails {
+        // DEFENSIVE ASSERTION: Token in lane (52-57) must stay in lane or finish
+        // Lane positions are color-specific and must NEVER wrap around or use ring indexing
+        if (token.position in LudoBoard.LANE_START until LudoBoard.FINISH_POSITION) {
+            val newPos = token.position + diceValue
+            // Lane can only advance forward (52→53→...→57→58) or stay (overshoot)
+            require(newPos >= token.position) {
+                "FATAL: Lane position cannot decrease! $color token at ${token.position} + $diceValue = $newPos"
+            }
+            // Lane positions must never result in ring positions (0-51)
+            if (newPos != token.position && newPos < LudoBoard.LANE_START) {
+                val errorMsg = "FATAL: $color token at lane position ${token.position} " +
+                    "would move to ring position $newPos! This is a bug - lane tokens must " +
+                    "stay in lane (52-57) or finish (58). Token may have entered wrong color's lane."
+                log(errorMsg)
+                throw IllegalStateException(errorMsg)
+            }
+        }
+
         return when (token.state) {
             TokenState.HOME -> {
                 // Moving out of home - token spawns at color's start position on ring
@@ -305,9 +357,19 @@ object LudoEngine {
             TokenState.ACTIVE -> {
                 val newPosition = token.position + diceValue
 
+                // DEFENSIVE: Verify lane positions are valid for this color
+                if (newPosition > LudoBoard.RING_END && newPosition < LudoBoard.FINISH_POSITION) {
+                    val laneIndex = newPosition - LudoBoard.LANE_START
+                    val laneCell = LudoBoard.getLaneCell(color, laneIndex)
+                    if (laneCell == null) {
+                        log("WARNING: $color has no lane cell at index $laneIndex (position $newPosition)")
+                    }
+                }
+
                 when {
-                    // Check for exact finish
+                    // Check for exact finish (position 57 = last lane cell)
                     newPosition == LudoBoard.FINISH_POSITION -> {
+                        log("[FINISH] $color token at ${token.position} + $diceValue = 57 → FINISHED")
                         MoveDetails(
                             newPosition = LudoBoard.FINISH_POSITION,
                             newTokenState = TokenState.FINISHED,
@@ -318,6 +380,7 @@ object LudoEngine {
                     }
                     // Overshoot finish - shouldn't happen if canTokenMove is correct
                     newPosition > LudoBoard.FINISH_POSITION -> {
+                        log("WARNING: $color token overshoot: ${token.position} + $diceValue = $newPosition > 57")
                         MoveDetails(
                             newPosition = token.position,
                             newTokenState = TokenState.ACTIVE,
@@ -329,12 +392,16 @@ object LudoEngine {
                     // Already in lane or entering lane
                     newPosition > LudoBoard.RING_END -> {
                         // Moving within or into finish lane (positions 52-57)
+                        // IMPORTANT: Lane positions are color-specific - no modulo/wrap-around allowed
                         val enteringLane = token.position <= LudoBoard.RING_END
+                        if (enteringLane) {
+                            log("[ENTER_LANE] $color token entering lane at position $newPosition")
+                        }
                         MoveDetails(
                             newPosition = newPosition,
                             newTokenState = TokenState.ACTIVE,
                             moveType = if (enteringLane) MoveType.ENTER_HOME_STRETCH else MoveType.NORMAL,
-                            absolutePosition = -1, // No capture possible in lane
+                            absolutePosition = -1, // No capture possible in lane - lane is color-specific
                             canCapture = false
                         )
                     }

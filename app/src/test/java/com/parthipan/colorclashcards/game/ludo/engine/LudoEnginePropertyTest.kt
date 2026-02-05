@@ -98,15 +98,15 @@ class LudoEnginePropertyTest {
                     )
                 }
 
-                // Token FINISHED must have position 58
+                // Token FINISHED must have position 57
                 if (token.state == TokenState.FINISHED) {
                     assertEquals(
                         "INVARIANT VIOLATION: FINISHED token has invalid position!\n" +
                                 "Player: ${player.name} (${player.color})\n" +
-                                "Token: ${token.id}, Position: ${token.position} (expected 58)\n" +
+                                "Token: ${token.id}, Position: ${token.position} (expected 57)\n" +
                                 "Context: $context\n" +
                                 "Move log:\n${formatMoveLog()}",
-                        58, token.position
+                        57, token.position
                     )
                 }
             }

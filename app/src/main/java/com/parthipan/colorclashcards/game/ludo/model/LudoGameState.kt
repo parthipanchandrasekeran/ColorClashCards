@@ -116,6 +116,14 @@ data class LudoGameState(
     }
 
     /**
+     * Get the first player with all 4 tokens in FINISHED state.
+     * This is a defensive check based on actual token state, independent of winnerId/gameStatus.
+     */
+    fun getPlayerWithAllTokensFinished(): LudoPlayer? {
+        return players.find { it.finishedTokenCount() == TOKENS_PER_PLAYER }
+    }
+
+    /**
      * Get all tokens on a specific board position.
      * Used for checking captures and collisions.
      *

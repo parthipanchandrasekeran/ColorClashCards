@@ -5,8 +5,8 @@
 ### IMPORTANT: Version Code Check
 **ALWAYS ASK the user for the current Play Store version code before bumping versions.**
 
-Last known Play Store versionCode: **15** (as of Feb 4, 2026)
-Next versionCode should be: **16 or higher**
+Last known Play Store versionCode: **16** (as of Feb 4, 2026)
+Next versionCode should be: **17 or higher**
 
 The Play Store rejects uploads with duplicate version codes. Before bumping versions:
 1. Check Play Console for the latest uploaded version code

@@ -411,13 +411,8 @@ private fun getOnlinePremiumTokenPosition(token: Token, color: LudoColor): Board
         TokenState.HOME -> LudoBoardPositions.getHomeBasePositions(color).getOrNull(token.id)
         TokenState.ACTIVE -> LudoBoardPositions.getGridPosition(token.position, color)
         TokenState.FINISHED -> {
-            val center = LudoBoardPositions.getFinishPosition()
-            when (color) {
-                LudoColor.RED -> BoardPosition(center.column - 1, center.row - 1)
-                LudoColor.BLUE -> BoardPosition(center.column + 1, center.row - 1)
-                LudoColor.GREEN -> BoardPosition(center.column + 1, center.row + 1)
-                LudoColor.YELLOW -> BoardPosition(center.column - 1, center.row + 1)
-            }
+            // All finished tokens go to the center cell (7, 7)
+            LudoBoardPositions.getFinishPosition()
         }
     }
 }

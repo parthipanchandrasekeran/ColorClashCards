@@ -138,7 +138,7 @@ data class Token(
     }
 
     companion object {
-        const val FINISH_POSITION = 58
+        const val FINISH_POSITION = 57  // Last lane cell IS the finish
         const val LANE_START = 52
         const val RING_END = 51
 

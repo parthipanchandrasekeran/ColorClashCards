@@ -41,8 +41,8 @@ object LudoBoard {
     /** Position value for tokens at home base */
     const val HOME_POSITION = -1
 
-    /** Position value for finished tokens */
-    const val FINISH_POSITION = 58
+    /** Position value for finished tokens (last lane cell, index 5) */
+    const val FINISH_POSITION = 57
 
     /** First position of finish lane (relative) */
     const val LANE_START = 52

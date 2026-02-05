@@ -283,16 +283,8 @@ private fun getTokenPosition(token: Token, color: LudoColor): BoardPosition? {
             LudoBoardPositions.getGridPosition(token.position, color)
         }
         TokenState.FINISHED -> {
-            // Offset finished tokens slightly based on ID to avoid overlap
-            val center = LudoBoardPositions.getFinishPosition()
-            val offset = when (token.id) {
-                0 -> BoardPosition(center.column - 1, center.row - 1)
-                1 -> BoardPosition(center.column + 1, center.row - 1)
-                2 -> BoardPosition(center.column - 1, center.row + 1)
-                3 -> BoardPosition(center.column + 1, center.row + 1)
-                else -> center
-            }
-            offset
+            // All finished tokens go to the center cell (7, 7)
+            LudoBoardPositions.getFinishPosition()
         }
     }
 }

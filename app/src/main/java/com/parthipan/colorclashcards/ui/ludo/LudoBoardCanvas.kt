@@ -69,14 +69,20 @@ fun LudoBoardCanvas(
         // Draw the track (cross-shaped path)
         drawTrack(cellSize)
 
-        // Draw home lanes (finish stretches)
-        drawHomeLane(LudoColor.GREEN, cellSize)
-        drawHomeLane(LudoColor.YELLOW, cellSize)
-        drawHomeLane(LudoColor.RED, cellSize)
-        drawHomeLane(LudoColor.BLUE, cellSize)
+        // Draw home lanes (finish stretches) - cells outside center area
+        drawHomeLane(LudoColor.GREEN, cellSize, excludeCenter = true)
+        drawHomeLane(LudoColor.YELLOW, cellSize, excludeCenter = true)
+        drawHomeLane(LudoColor.RED, cellSize, excludeCenter = true)
+        drawHomeLane(LudoColor.BLUE, cellSize, excludeCenter = true)
 
         // Draw center finish area
         drawCenterFinish(cellSize)
+
+        // Draw lane cells that are inside center area (on top of triangles)
+        drawHomeLane(LudoColor.GREEN, cellSize, onlyCenterCells = true)
+        drawHomeLane(LudoColor.YELLOW, cellSize, onlyCenterCells = true)
+        drawHomeLane(LudoColor.RED, cellSize, onlyCenterCells = true)
+        drawHomeLane(LudoColor.BLUE, cellSize, onlyCenterCells = true)
 
         // Draw safe cells (stars) and start cells (arrows)
         drawSafeCells(cellSize)
@@ -204,12 +210,30 @@ private fun DrawScope.drawTrackCell(x: Float, y: Float, cellSize: Float) {
 /**
  * Draw the colored home lane (finish stretch) for a player.
  */
-private fun DrawScope.drawHomeLane(color: LudoColor, cellSize: Float) {
+private fun DrawScope.drawHomeLane(
+    color: LudoColor,
+    cellSize: Float,
+    excludeCenter: Boolean = false,
+    onlyCenterCells: Boolean = false
+) {
     val playerColor = LudoBoardColors.getColor(color)
     val laneCells = LudoBoard.LANE_CELLS_BY_COLOR[color] ?: return
 
+    // Center area is rows 6-8, cols 6-8
+    fun isInCenterArea(row: Int, col: Int): Boolean {
+        return row in 6..8 && col in 6..8
+    }
+
     laneCells.forEach { (row, col) ->
-        drawColoredCell(col * cellSize, row * cellSize, cellSize, playerColor)
+        val inCenter = isInCenterArea(row, col)
+        val shouldDraw = when {
+            onlyCenterCells -> inCenter
+            excludeCenter -> !inCenter
+            else -> true
+        }
+        if (shouldDraw) {
+            drawColoredCell(col * cellSize, row * cellSize, cellSize, playerColor)
+        }
     }
 }
 
@@ -439,19 +463,57 @@ object LudoBoardPositions {
 
     /**
      * Get the board grid position for a token based on its relative position and color.
+     *
+     * IMPORTANT: Lane positions (52-57) are COLOR-SPECIFIC.
+     * Each color has its own distinct lane cells leading to the center.
+     * The color parameter MUST match the token's owning player's color.
+     *
+     * Position ranges:
+     * - -1: HOME (not handled here, use getHomeBasePositions)
+     * - 0-51: Ring/track (shared, uses absolute position)
+     * - 52-56: Lane (color-specific, 5 cells before finish)
+     * - 57: FINISHED (last lane cell = finish, use getFinishPosition for rendering)
      */
     fun getGridPosition(relativePosition: Int, color: LudoColor): BoardPosition? {
         if (relativePosition < 0) return null
         if (relativePosition >= LudoBoard.FINISH_POSITION) return null
 
-        // Lane positions (52-57)
+        // Lane positions (52-57) - MUST use the token's color for correct lane
         if (relativePosition > LudoBoard.RING_END) {
             val laneIndex = relativePosition - LudoBoard.LANE_START
-            val cell = LudoBoard.getLaneCell(color, laneIndex) ?: return null
+
+            // DEFENSIVE: Verify lane index is valid (0-5)
+            if (laneIndex !in 0..5) {
+                println("[LudoBoardPositions] ERROR: Invalid lane index $laneIndex for position $relativePosition")
+                return null
+            }
+
+            // Get the lane cell for THIS color (not any other color)
+            val cell = LudoBoard.getLaneCell(color, laneIndex)
+            if (cell == null) {
+                println("[LudoBoardPositions] ERROR: No lane cell for $color at index $laneIndex")
+                return null
+            }
+
+            // DEFENSIVE: Verify this cell is NOT in another color's lane
+            for (otherColor in LudoColor.entries) {
+                if (otherColor != color) {
+                    val otherLaneCells = LudoBoard.LANE_CELLS_BY_COLOR[otherColor] ?: continue
+                    if (cell in otherLaneCells) {
+                        // This should NEVER happen - lanes should be disjoint
+                        val errorMsg = "[LudoBoardPositions] FATAL: $color lane cell $cell " +
+                            "at index $laneIndex is also in ${otherColor}'s lane! " +
+                            "This is a board configuration error."
+                        println(errorMsg)
+                        throw IllegalStateException(errorMsg)
+                    }
+                }
+            }
+
             return BoardPosition(cell.second, cell.first)
         }
 
-        // Ring positions (0-51)
+        // Ring positions (0-51) - use absolute position for rendering
         val absoluteIndex = LudoBoard.toAbsolutePosition(relativePosition, color)
         if (absoluteIndex < 0) return null
 

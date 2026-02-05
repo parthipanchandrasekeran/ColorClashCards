@@ -1,6 +1,8 @@
 package com.parthipan.colorclashcards.game.ludo.engine
 
 import com.parthipan.colorclashcards.game.ludo.model.*
+import com.parthipan.colorclashcards.ui.ludo.BoardPosition
+import com.parthipan.colorclashcards.ui.ludo.LudoBoardPositions
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -112,26 +114,26 @@ class LudoEngineTest {
 
     @Test
     fun `getMovableTokens returns only tokens that can legally move`() {
-        // Arrange
+        // Arrange - with FINISH_POSITION=57, token at 56 needs exactly 1 to finish
         val tokens = listOf(
             Token(id = 0, state = TokenState.HOME, position = -1),
             Token(id = 1, state = TokenState.ACTIVE, position = 10),
-            Token(id = 2, state = TokenState.ACTIVE, position = 56), // Close to finish (56+3=59 > 58, cannot move with 3)
-            Token(id = 3, state = TokenState.FINISHED, position = 58)
+            Token(id = 2, state = TokenState.ACTIVE, position = 56), // Close to finish (56+2=58 > 57, cannot move with 2+)
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
         )
         val player = redPlayer.copy(tokens = tokens)
 
         // Act
         val movableWith3 = player.getMovableTokens(3)
         val movableWith6 = player.getMovableTokens(6)
-        val movableWith2 = player.getMovableTokens(2) // Token at 56 can move with 2 (56+2=58 exactly)
+        val movableWith1 = player.getMovableTokens(1) // Token at 56 can move with 1 (56+1=57 exactly)
 
         // Assert
-        // With dice 3: only token at position 10 can move (token at 56 would exceed 58)
+        // With dice 3: only token at position 10 can move (token at 56 would exceed 57)
         assertEquals("With dice 3: only 1 active token can move",
             1, movableWith3.size)
         assertTrue("Token 1 should be movable with 3", movableWith3.any { it.id == 1 })
-        assertTrue("Token 2 should NOT be movable with 3 (56+3=59 > 58)",
+        assertTrue("Token 2 should NOT be movable with 3 (56+3=59 > 57)",
             movableWith3.none { it.id == 2 })
 
         // With dice 6: HOME token can exit + token at position 10 can move (but token at 56 cannot)
@@ -140,11 +142,11 @@ class LudoEngineTest {
         assertTrue("Token 0 (HOME) should be movable with 6", movableWith6.any { it.id == 0 })
         assertTrue("Token 1 should be movable with 6", movableWith6.any { it.id == 1 })
 
-        // With dice 2: token at 56 can also move (56+2=58 exactly)
-        assertEquals("With dice 2: 2 active tokens can move",
-            2, movableWith2.size)
-        assertTrue("Token 1 should be movable with 2", movableWith2.any { it.id == 1 })
-        assertTrue("Token 2 should be movable with 2 (56+2=58)", movableWith2.any { it.id == 2 })
+        // With dice 1: token at 56 can also move (56+1=57 exactly)
+        assertEquals("With dice 1: 2 active tokens can move",
+            2, movableWith1.size)
+        assertTrue("Token 1 should be movable with 1", movableWith1.any { it.id == 1 })
+        assertTrue("Token 2 should be movable with 1 (56+1=57)", movableWith1.any { it.id == 2 })
     }
 
     @Test
@@ -161,14 +163,14 @@ class LudoEngineTest {
 
     @Test
     fun `token cannot move past finish position`() {
-        // Arrange
+        // Arrange - FINISH_POSITION=57, so token at 56 needs exactly 1
         val tokenNearFinish = Token(id = 0, state = TokenState.ACTIVE, position = 56)
 
         // Act & Assert
-        assertTrue("Should move with dice 1 (56+1=57 <= 58)", tokenNearFinish.canMove(1))
-        assertTrue("Should move with dice 2 (56+2=58 == 58)", tokenNearFinish.canMove(2))
-        assertFalse("Should NOT move with dice 3 (56+3=59 > 58)", tokenNearFinish.canMove(3))
-        assertFalse("Should NOT move with dice 6 (56+6=62 > 58)", tokenNearFinish.canMove(6))
+        assertTrue("Should move with dice 1 (56+1=57 == 57)", tokenNearFinish.canMove(1))
+        assertFalse("Should NOT move with dice 2 (56+2=58 > 57)", tokenNearFinish.canMove(2))
+        assertFalse("Should NOT move with dice 3 (56+3=59 > 57)", tokenNearFinish.canMove(3))
+        assertFalse("Should NOT move with dice 6 (56+6=62 > 57)", tokenNearFinish.canMove(6))
     }
 
     // ==================== KILL RULES TESTS ====================
@@ -376,8 +378,8 @@ class LudoEngineTest {
     }
 
     @Test
-    fun `token finishes exactly at position 58`() {
-        // Arrange
+    fun `token finishes exactly at position 57`() {
+        // Arrange - FINISH_POSITION=57, token at 56 needs 1 to finish
         val tokenAtPosition56 = Token(id = 0, state = TokenState.ACTIVE, position = 56)
         val player = redPlayer.copy(tokens = listOf(
             tokenAtPosition56,
@@ -390,7 +392,7 @@ class LudoEngineTest {
             players = listOf(player, bluePlayer),
             currentTurnPlayerId = player.id,
             gameStatus = GameStatus.IN_PROGRESS,
-            diceValue = 2, // 56 + 2 = 58 (exact finish)
+            diceValue = 1, // 56 + 1 = 57 (exact finish)
             canRollDice = false,
             mustSelectToken = true
         )
@@ -405,20 +407,20 @@ class LudoEngineTest {
         val playerAfterMove = success.newState.getPlayer(player.id)
         val finishedToken = playerAfterMove?.getToken(0)
         assertEquals("Token should be FINISHED", TokenState.FINISHED, finishedToken?.state)
-        assertEquals("Token should be at position 58", 58, finishedToken?.position)
+        assertEquals("Token should be at position 57", 57, finishedToken?.position)
         assertEquals("Move type should be FINISH", MoveType.FINISH, success.move.moveType)
     }
 
     @Test
     fun `token cannot move if dice exceeds finish position`() {
-        // Arrange
+        // Arrange - FINISH_POSITION=57, token at 56 can only move with dice 1
         val tokenAtPosition56 = Token(id = 0, state = TokenState.ACTIVE, position = 56)
 
         // Act & Assert
-        assertFalse("Should not move with dice 3 (56+3=59 > 58)", tokenAtPosition56.canMove(3))
-        assertFalse("Should not move with dice 4 (56+4=60 > 58)", tokenAtPosition56.canMove(4))
-        assertFalse("Should not move with dice 5 (56+5=61 > 58)", tokenAtPosition56.canMove(5))
-        assertFalse("Should not move with dice 6 (56+6=62 > 58)", tokenAtPosition56.canMove(6))
+        assertFalse("Should not move with dice 2 (56+2=58 > 57)", tokenAtPosition56.canMove(2))
+        assertFalse("Should not move with dice 3 (56+3=59 > 57)", tokenAtPosition56.canMove(3))
+        assertFalse("Should not move with dice 4 (56+4=60 > 57)", tokenAtPosition56.canMove(4))
+        assertFalse("Should not move with dice 6 (56+6=62 > 57)", tokenAtPosition56.canMove(6))
     }
 
     @Test
@@ -662,9 +664,9 @@ class LudoEngineTest {
         // Arrange - 3 tokens finished, 1 about to finish
         val tokens = listOf(
             Token(id = 0, state = TokenState.ACTIVE, position = 56),
-            Token(id = 1, state = TokenState.FINISHED, position = 58),
-            Token(id = 2, state = TokenState.FINISHED, position = 58),
-            Token(id = 3, state = TokenState.FINISHED, position = 58)
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
         )
         val player = redPlayer.copy(tokens = tokens)
 
@@ -672,7 +674,7 @@ class LudoEngineTest {
             players = listOf(player, bluePlayer),
             currentTurnPlayerId = player.id,
             gameStatus = GameStatus.IN_PROGRESS,
-            diceValue = 2, // Will finish last token (56+2=58)
+            diceValue = 1, // Will finish last token (56+1=57)
             canRollDice = false,
             mustSelectToken = true
         )
@@ -692,10 +694,10 @@ class LudoEngineTest {
     fun `isWinningState returns true when player has all tokens finished`() {
         // Arrange
         val tokens = listOf(
-            Token(id = 0, state = TokenState.FINISHED, position = 58),
-            Token(id = 1, state = TokenState.FINISHED, position = 58),
-            Token(id = 2, state = TokenState.FINISHED, position = 58),
-            Token(id = 3, state = TokenState.FINISHED, position = 58)
+            Token(id = 0, state = TokenState.FINISHED, position = 57),
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
         )
         val player = redPlayer.copy(tokens = tokens)
 
@@ -707,9 +709,9 @@ class LudoEngineTest {
     fun `isWinningState returns false when not all tokens finished`() {
         // Arrange
         val tokens = listOf(
-            Token(id = 0, state = TokenState.FINISHED, position = 58),
-            Token(id = 1, state = TokenState.FINISHED, position = 58),
-            Token(id = 2, state = TokenState.FINISHED, position = 58),
+            Token(id = 0, state = TokenState.FINISHED, position = 57),
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
             Token(id = 3, state = TokenState.ACTIVE, position = 50)
         )
         val player = redPlayer.copy(tokens = tokens)
@@ -721,7 +723,7 @@ class LudoEngineTest {
     @Test
     fun `finished token cannot move`() {
         // Arrange
-        val finishedToken = Token(id = 0, state = TokenState.FINISHED, position = 58)
+        val finishedToken = Token(id = 0, state = TokenState.FINISHED, position = 57)
 
         // Act & Assert
         for (dice in 1..6) {
@@ -830,12 +832,12 @@ class LudoEngineTest {
     @Test
     fun `distanceToFinish calculates correctly`() {
         // Arrange & Act & Assert
-        assertEquals("At position 50, distance should be 8",
-            8, LudoBoard.distanceToFinish(50))
-        assertEquals("At position 56, distance should be 2",
-            2, LudoBoard.distanceToFinish(56))
-        assertEquals("At position 58 (finish), distance should be 0",
-            0, LudoBoard.distanceToFinish(58))
+        assertEquals("At position 50, distance should be 7",
+            7, LudoBoard.distanceToFinish(50))
+        assertEquals("At position 56, distance should be 1",
+            1, LudoBoard.distanceToFinish(56))
+        assertEquals("At position 57 (finish), distance should be 0",
+            0, LudoBoard.distanceToFinish(57))
     }
 
     // ==================== COLOR-KEYED POSITION TESTS ====================
@@ -1335,7 +1337,7 @@ class LudoEngineTest {
 
     @Test
     fun `exact roll required to finish`() {
-        // Arrange - Token at position 56, needs exactly 2 to finish
+        // Arrange - Token at position 56, needs exactly 1 to finish (FINISH_POSITION=57)
         val redTokens = listOf(
             Token(id = 0, state = TokenState.ACTIVE, position = 56),
             Token(id = 1, state = TokenState.HOME, position = -1),
@@ -1344,12 +1346,12 @@ class LudoEngineTest {
         )
         val red = redPlayer.copy(tokens = redTokens)
 
-        // Test with exact roll (2)
+        // Test with exact roll (1)
         val gameState = LudoGameState(
             players = listOf(red, bluePlayer),
             currentTurnPlayerId = red.id,
             gameStatus = GameStatus.IN_PROGRESS,
-            diceValue = 2,
+            diceValue = 1,
             canRollDice = false,
             mustSelectToken = true
         )
@@ -1357,16 +1359,16 @@ class LudoEngineTest {
         val result = LudoEngine.moveToken(gameState, tokenId = 0)
         assertTrue("Move with exact roll should succeed", result is MoveResult.Success)
         val success = result as MoveResult.Success
-        assertEquals("Token should finish at position 58",
-            58, success.newState.getPlayer(red.id)?.getToken(0)?.position)
+        assertEquals("Token should finish at position 57",
+            57, success.newState.getPlayer(red.id)?.getToken(0)?.position)
         assertEquals("Token state should be FINISHED",
             TokenState.FINISHED, success.newState.getPlayer(red.id)?.getToken(0)?.state)
 
         // Test that overshooting is not allowed (canMove returns false)
         val tokenNearFinish = Token(id = 0, state = TokenState.ACTIVE, position = 56)
+        assertFalse("Token at 56 should NOT be able to move with 2", tokenNearFinish.canMove(2))
         assertFalse("Token at 56 should NOT be able to move with 3", tokenNearFinish.canMove(3))
         assertFalse("Token at 56 should NOT be able to move with 4", tokenNearFinish.canMove(4))
-        assertTrue("Token at 56 should be able to move with 2", tokenNearFinish.canMove(2))
         assertTrue("Token at 56 should be able to move with 1", tokenNearFinish.canMove(1))
     }
 
@@ -1429,11 +1431,12 @@ class LudoEngineTest {
     @Test
     fun `mode A - 2 players - game ends when first player finishes all tokens`() {
         // Arrange - Red has 3 finished, 1 about to finish (2-player game)
+        // FINISH_POSITION=57, so token at 56 needs 1 to finish
         val tokens = listOf(
             Token(id = 0, state = TokenState.ACTIVE, position = 56),
-            Token(id = 1, state = TokenState.FINISHED, position = 58),
-            Token(id = 2, state = TokenState.FINISHED, position = 58),
-            Token(id = 3, state = TokenState.FINISHED, position = 58)
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
         )
         val player = redPlayer.copy(tokens = tokens)
 
@@ -1441,7 +1444,7 @@ class LudoEngineTest {
             players = listOf(player, bluePlayer),
             currentTurnPlayerId = player.id,
             gameStatus = GameStatus.IN_PROGRESS,
-            diceValue = 2,
+            diceValue = 1,
             canRollDice = false,
             mustSelectToken = true
         )
@@ -1464,9 +1467,9 @@ class LudoEngineTest {
         // Arrange - Red has 3 finished, 1 about to finish (3-player game)
         val tokens = listOf(
             Token(id = 0, state = TokenState.ACTIVE, position = 56),
-            Token(id = 1, state = TokenState.FINISHED, position = 58),
-            Token(id = 2, state = TokenState.FINISHED, position = 58),
-            Token(id = 3, state = TokenState.FINISHED, position = 58)
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
         )
         val player = redPlayer.copy(tokens = tokens)
 
@@ -1474,7 +1477,7 @@ class LudoEngineTest {
             players = listOf(player, bluePlayer, greenPlayer),
             currentTurnPlayerId = player.id,
             gameStatus = GameStatus.IN_PROGRESS,
-            diceValue = 2,
+            diceValue = 1, // 56 + 1 = 57 (finish)
             canRollDice = false,
             mustSelectToken = true
         )
@@ -1498,10 +1501,10 @@ class LudoEngineTest {
     fun `mode B - finished player is skipped in turn rotation`() {
         // Arrange - Red has finished, Blue and Green still playing
         val redTokens = listOf(
-            Token(id = 0, state = TokenState.FINISHED, position = 58),
-            Token(id = 1, state = TokenState.FINISHED, position = 58),
-            Token(id = 2, state = TokenState.FINISHED, position = 58),
-            Token(id = 3, state = TokenState.FINISHED, position = 58)
+            Token(id = 0, state = TokenState.FINISHED, position = 57),
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
         )
         val red = redPlayer.copy(tokens = redTokens)
 
@@ -1532,18 +1535,18 @@ class LudoEngineTest {
     fun `mode B - game ends when only 1 active player remains`() {
         // Arrange - Red already finished, Blue about to finish, Green still playing
         val redTokens = listOf(
-            Token(id = 0, state = TokenState.FINISHED, position = 58),
-            Token(id = 1, state = TokenState.FINISHED, position = 58),
-            Token(id = 2, state = TokenState.FINISHED, position = 58),
-            Token(id = 3, state = TokenState.FINISHED, position = 58)
+            Token(id = 0, state = TokenState.FINISHED, position = 57),
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
         )
         val red = redPlayer.copy(tokens = redTokens)
 
         val blueTokens = listOf(
             Token(id = 0, state = TokenState.ACTIVE, position = 56),
-            Token(id = 1, state = TokenState.FINISHED, position = 58),
-            Token(id = 2, state = TokenState.FINISHED, position = 58),
-            Token(id = 3, state = TokenState.FINISHED, position = 58)
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
         )
         val blue = bluePlayer.copy(tokens = blueTokens)
 
@@ -1551,7 +1554,7 @@ class LudoEngineTest {
             players = listOf(red, blue, greenPlayer),
             currentTurnPlayerId = blue.id,
             gameStatus = GameStatus.IN_PROGRESS,
-            diceValue = 2,
+            diceValue = 1, // 56 + 1 = 57 (finish)
             canRollDice = false,
             mustSelectToken = true,
             finishOrder = listOf(red.id)
@@ -1580,17 +1583,17 @@ class LudoEngineTest {
     @Test
     fun `mode B - finishOrder tracks correct ranking`() {
         // Arrange - 4-player game, red and blue already finished, green about to finish
-        val redTokens = List(4) { Token(id = it, state = TokenState.FINISHED, position = 58) }
+        val redTokens = List(4) { Token(id = it, state = TokenState.FINISHED, position = 57) }
         val red = redPlayer.copy(tokens = redTokens)
 
-        val blueTokens = List(4) { Token(id = it, state = TokenState.FINISHED, position = 58) }
+        val blueTokens = List(4) { Token(id = it, state = TokenState.FINISHED, position = 57) }
         val blue = bluePlayer.copy(tokens = blueTokens)
 
         val greenTokens = listOf(
             Token(id = 0, state = TokenState.ACTIVE, position = 56),
-            Token(id = 1, state = TokenState.FINISHED, position = 58),
-            Token(id = 2, state = TokenState.FINISHED, position = 58),
-            Token(id = 3, state = TokenState.FINISHED, position = 58)
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
         )
         val green = greenPlayer.copy(tokens = greenTokens)
 
@@ -1598,7 +1601,7 @@ class LudoEngineTest {
             players = listOf(red, blue, green, yellowPlayer),
             currentTurnPlayerId = green.id,
             gameStatus = GameStatus.IN_PROGRESS,
-            diceValue = 2,
+            diceValue = 1, // 56 + 1 = 57 (finish)
             canRollDice = false,
             mustSelectToken = true,
             finishOrder = listOf(red.id, blue.id)
@@ -1629,7 +1632,7 @@ class LudoEngineTest {
     @Test
     fun `finished player cannot roll dice - engine advances turn`() {
         // Arrange - Red has finished all tokens but is somehow current player
-        val redTokens = List(4) { Token(id = it, state = TokenState.FINISHED, position = 58) }
+        val redTokens = List(4) { Token(id = it, state = TokenState.FINISHED, position = 57) }
         val red = redPlayer.copy(tokens = redTokens)
 
         val blueTokens = listOf(
@@ -1659,7 +1662,7 @@ class LudoEngineTest {
     @Test
     fun `finished player moveToken returns error`() {
         // Arrange - Red has all tokens finished, somehow moveToken is called
-        val redTokens = List(4) { Token(id = it, state = TokenState.FINISHED, position = 58) }
+        val redTokens = List(4) { Token(id = it, state = TokenState.FINISHED, position = 57) }
         val red = redPlayer.copy(tokens = redTokens)
 
         val gameState = LudoGameState(
@@ -1685,7 +1688,7 @@ class LudoEngineTest {
     @Test
     fun `validateMove rejects finished player`() {
         // Arrange
-        val redTokens = List(4) { Token(id = it, state = TokenState.FINISHED, position = 58) }
+        val redTokens = List(4) { Token(id = it, state = TokenState.FINISHED, position = 57) }
         val red = redPlayer.copy(tokens = redTokens)
 
         val gameState = LudoGameState(
@@ -1738,12 +1741,12 @@ class LudoEngineTest {
 
     @Test
     fun `2-player game ends correctly when RED finishes all 4 tokens and further rolls are blocked`() {
-        // Arrange - RED has 3 FINISHED tokens + 1 token at position 57, dice value 1
+        // Arrange - RED has 3 FINISHED tokens + 1 token at position 56, dice value 1
         val tokens = listOf(
-            Token(id = 0, state = TokenState.ACTIVE, position = 57),
-            Token(id = 1, state = TokenState.FINISHED, position = 58),
-            Token(id = 2, state = TokenState.FINISHED, position = 58),
-            Token(id = 3, state = TokenState.FINISHED, position = 58)
+            Token(id = 0, state = TokenState.ACTIVE, position = 56),
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
         )
         val player = redPlayer.copy(tokens = tokens)
 
@@ -1751,7 +1754,7 @@ class LudoEngineTest {
             players = listOf(player, bluePlayer),
             currentTurnPlayerId = player.id,
             gameStatus = GameStatus.IN_PROGRESS,
-            diceValue = 1, // 57 + 1 = 58 (exact finish)
+            diceValue = 1, // 56 + 1 = 57 (exact finish)
             canRollDice = false,
             mustSelectToken = true
         )
@@ -1783,6 +1786,536 @@ class LudoEngineTest {
         )
         assertTrue("State should still be game over after blocked roll", blockedState.isGameOver)
         assertEquals("Winner should still be RED after blocked roll", player.id, blockedState.winnerId)
+    }
+
+    @Test
+    fun `2-player game - rollDice triggers defensive win detection when RED has 4 FINISHED tokens but winnerId is null`() {
+        // Arrange - RED has all 4 tokens FINISHED but winnerId/gameStatus not set (edge case bug)
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.FINISHED, position = 57),
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
+        )
+        val red = redPlayer.copy(tokens = redTokens)
+
+        // This represents the buggy state: all RED tokens FINISHED but game didn't end
+        val buggyState = LudoGameState(
+            players = listOf(red, bluePlayer),
+            currentTurnPlayerId = bluePlayer.id,
+            gameStatus = GameStatus.IN_PROGRESS, // Bug: should be FINISHED
+            winnerId = null, // Bug: should be red.id
+            canRollDice = true
+        )
+
+        // Verify RED has 4 FINISHED tokens (token state check)
+        val redFinishedCount = red.tokens.count { it.state == TokenState.FINISHED }
+        assertEquals("RED should have 4 FINISHED tokens", 4, redFinishedCount)
+        assertTrue("RED hasWon() should return true", red.hasWon())
+
+        // Act - BLUE tries to roll dice
+        val correctedState = LudoEngine.rollDice(buggyState, diceValue = 3)
+
+        // Assert - Defensive guard should detect RED's win and end game
+        assertTrue("Game should be over after defensive check", correctedState.isGameOver)
+        assertEquals("Winner should be RED", red.id, correctedState.winnerId)
+        assertEquals("Game status should be FINISHED", GameStatus.FINISHED, correctedState.gameStatus)
+        assertFalse("canRollDice should be false", correctedState.canRollDice)
+        assertTrue("RED should be in finishOrder", red.id in correctedState.finishOrder)
+    }
+
+    @Test
+    fun `2-player game - bot cannot roll after RED finishes all 4 tokens`() {
+        // Arrange - RED (human) finishes last token, game should end, bot should NOT roll
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 56),
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
+        )
+        val red = redPlayer.copy(tokens = redTokens)
+        val bot = bluePlayer.copy(isBot = true)
+
+        val gameState = LudoGameState(
+            players = listOf(red, bot),
+            currentTurnPlayerId = red.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            diceValue = 1, // 56 + 1 = 57 (exact finish)
+            canRollDice = false,
+            mustSelectToken = true
+        )
+
+        // Act - RED moves last token to finish
+        val result = LudoEngine.moveToken(gameState, tokenId = 0)
+
+        // Assert - Game ends immediately
+        assertTrue("Move should succeed", result is MoveResult.Success)
+        val success = result as MoveResult.Success
+        assertTrue("Game should be over", success.hasWon)
+        assertEquals("Winner should be RED", red.id, success.newState.winnerId)
+        assertEquals("Game status should be FINISHED", GameStatus.FINISHED, success.newState.gameStatus)
+
+        // Assert - Bot cannot roll (simulating what would happen if bot loop tried)
+        val stateAfterWin = success.newState
+        assertTrue("Game isGameOver should be true", stateAfterWin.isGameOver)
+        assertFalse("canRollDice should be false after win", stateAfterWin.canRollDice)
+
+        // Simulate bot trying to roll - should be blocked by isGameOver guard
+        val blockedRoll = LudoEngine.rollDice(
+            stateAfterWin.copy(
+                currentTurnPlayerId = bot.id,
+                canRollDice = true // force to test the guard
+            ),
+            diceValue = 6
+        )
+
+        // Assert - Roll is blocked, state unchanged
+        assertTrue("State should remain game over", blockedRoll.isGameOver)
+        assertEquals("Winner should still be RED", red.id, blockedRoll.winnerId)
+    }
+
+    @Test
+    fun `getPlayerWithAllTokensFinished returns player with 4 FINISHED tokens`() {
+        // Arrange - RED has all 4 tokens FINISHED
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.FINISHED, position = 57),
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
+        )
+        val red = redPlayer.copy(tokens = redTokens)
+
+        val gameState = LudoGameState(
+            players = listOf(red, bluePlayer),
+            currentTurnPlayerId = bluePlayer.id,
+            gameStatus = GameStatus.IN_PROGRESS
+        )
+
+        // Act
+        val finishedPlayer = gameState.getPlayerWithAllTokensFinished()
+
+        // Assert
+        assertNotNull("Should find RED as finished player", finishedPlayer)
+        assertEquals("Finished player should be RED", red.id, finishedPlayer?.id)
+    }
+
+    @Test
+    fun `getPlayerWithAllTokensFinished returns null when no player has all 4 FINISHED`() {
+        // Arrange - RED has 3 FINISHED, 1 ACTIVE
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 50),
+            Token(id = 1, state = TokenState.FINISHED, position = 57),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
+        )
+        val red = redPlayer.copy(tokens = redTokens)
+
+        val gameState = LudoGameState(
+            players = listOf(red, bluePlayer),
+            currentTurnPlayerId = red.id,
+            gameStatus = GameStatus.IN_PROGRESS
+        )
+
+        // Act
+        val finishedPlayer = gameState.getPlayerWithAllTokensFinished()
+
+        // Assert
+        assertNull("Should return null when no player has all 4 FINISHED", finishedPlayer)
+    }
+
+    @Test
+    fun `FINISHED tokens are never movable`() {
+        // Arrange - All possible dice values
+        val finishedToken = Token(id = 0, state = TokenState.FINISHED, position = 57)
+
+        // Act & Assert - FINISHED tokens cannot move with ANY dice value
+        for (diceValue in 1..6) {
+            assertFalse(
+                "FINISHED token should NOT be movable with dice=$diceValue",
+                LudoEngine.canTokenMove(finishedToken, diceValue)
+            )
+        }
+    }
+
+    @Test
+    fun `finishedTokenCount returns correct count`() {
+        // Arrange
+        val tokens = listOf(
+            Token(id = 0, state = TokenState.HOME, position = -1),
+            Token(id = 1, state = TokenState.ACTIVE, position = 25),
+            Token(id = 2, state = TokenState.FINISHED, position = 57),
+            Token(id = 3, state = TokenState.FINISHED, position = 57)
+        )
+        val player = redPlayer.copy(tokens = tokens)
+
+        // Act & Assert
+        assertEquals("Should have 2 FINISHED tokens", 2, player.finishedTokenCount())
+        assertEquals("Should have 1 ACTIVE token", 1, player.activeTokenCount())
+        assertEquals("Should have 1 HOME token", 1, player.homeTokenCount())
+        assertFalse("hasWon should be false with 2/4 finished", player.hasWon())
+    }
+
+    // ==================== LANE MOVEMENT & FINISH TESTS ====================
+
+    @Test
+    fun `RED token at lane position 56 becomes FINISHED immediately with exact roll of 1`() {
+        // Arrange - RED token at position 56 (last ACTIVE lane cell, lane step 4)
+        // FINISH_POSITION = 57, so rolling 1 from 56 finishes the token
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 56), // Last active lane cell
+            Token(id = 1, state = TokenState.HOME, position = -1),
+            Token(id = 2, state = TokenState.HOME, position = -1),
+            Token(id = 3, state = TokenState.HOME, position = -1)
+        )
+        val red = redPlayer.copy(tokens = redTokens)
+
+        val gameState = LudoGameState(
+            players = listOf(red, bluePlayer),
+            currentTurnPlayerId = red.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            diceValue = 1, // Exact roll to finish: 56 + 1 = 57
+            canRollDice = false,
+            mustSelectToken = true
+        )
+
+        // Act
+        val result = LudoEngine.moveToken(gameState, tokenId = 0)
+
+        // Assert
+        assertTrue("Move should succeed", result is MoveResult.Success)
+        val success = result as MoveResult.Success
+        val movedToken = success.newState.getPlayer(red.id)?.getToken(0)
+
+        // Token should be FINISHED at position 57
+        assertNotNull("Token should exist", movedToken)
+        assertEquals("Token should be at FINISH_POSITION (57)", 57, movedToken!!.position)
+        assertEquals("Token state should be FINISHED", TokenState.FINISHED, movedToken.state)
+        assertEquals("Move type should be FINISH", MoveType.FINISH, success.move.moveType)
+    }
+
+    @Test
+    fun `FINISHED token cannot move with any dice value`() {
+        // Arrange - RED token already FINISHED
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.FINISHED, position = 57),
+            Token(id = 1, state = TokenState.HOME, position = -1),
+            Token(id = 2, state = TokenState.HOME, position = -1),
+            Token(id = 3, state = TokenState.HOME, position = -1)
+        )
+        val red = redPlayer.copy(tokens = redTokens)
+
+        // Act & Assert - FINISHED token should not be movable with ANY dice value
+        for (diceValue in 1..6) {
+            val canMove = LudoEngine.canTokenMove(redTokens[0], diceValue)
+            assertFalse("FINISHED token should NOT move with dice=$diceValue", canMove)
+        }
+
+        // Also verify getMovableTokens excludes FINISHED tokens
+        val movable = LudoEngine.getMovableTokens(red, 6)
+        assertTrue("FINISHED token should NOT be in movable list",
+            movable.none { it.state == TokenState.FINISHED })
+    }
+
+    @Test
+    fun `RED token lane position 52-57 renders in RED lane cells only`() {
+        // This test verifies that lane positions use the correct color's lane cells
+        // RED lane: vertical, going UP towards center (col 7, rows 13→8)
+        // GREEN lane: horizontal, going RIGHT towards center (row 7, cols 1→6)
+
+        // RED's lane cells (from LudoBoard.LANE_CELLS_BY_COLOR)
+        val redLaneCells = listOf(
+            Pair(13, 7), Pair(12, 7), Pair(11, 7), Pair(10, 7), Pair(9, 7), Pair(8, 7)
+        )
+
+        // GREEN's lane cells
+        val greenLaneCells = listOf(
+            Pair(7, 1), Pair(7, 2), Pair(7, 3), Pair(7, 4), Pair(7, 5), Pair(7, 6)
+        )
+
+        // For each lane position (52-57), verify RED gets RED lane cells
+        for (lanePos in 52..57) {
+            val laneIndex = lanePos - 52
+
+            val redCell = LudoBoard.getLaneCell(LudoColor.RED, laneIndex)
+            val greenCell = LudoBoard.getLaneCell(LudoColor.GREEN, laneIndex)
+
+            // Verify RED lane cell is correct
+            assertEquals("RED lane[$laneIndex] should be ${redLaneCells[laneIndex]}",
+                redLaneCells[laneIndex], redCell)
+
+            // Verify GREEN lane cell is different
+            assertEquals("GREEN lane[$laneIndex] should be ${greenLaneCells[laneIndex]}",
+                greenLaneCells[laneIndex], greenCell)
+
+            // Verify RED cell is NOT in GREEN lane
+            assertFalse("RED lane cell should NOT be in GREEN lane",
+                greenLaneCells.contains(redCell))
+        }
+    }
+
+    @Test
+    fun `lane positions 52-57 never use ring indexing or modulo`() {
+        // Verify that toAbsolutePosition returns -1 for all lane positions
+        // This ensures lane positions are never confused with ring positions
+
+        for (lanePos in 52..57) {
+            for (color in LudoColor.entries) {
+                val absolutePos = LudoBoard.toAbsolutePosition(lanePos, color)
+                assertEquals(
+                    "Lane position $lanePos for $color should return -1 (not on ring)",
+                    -1, absolutePos
+                )
+            }
+        }
+
+        // Also verify position 58 (FINISHED) returns -1
+        for (color in LudoColor.entries) {
+            val absolutePos = LudoBoard.toAbsolutePosition(58, color)
+            assertEquals("FINISH position for $color should return -1", -1, absolutePos)
+        }
+    }
+
+    @Test
+    fun `RED token entering lane from ring goes to RED lane not GREEN`() {
+        // Arrange - RED token at position 51 (last ring cell before lane entry)
+        val redTokens = listOf(
+            Token(id = 0, state = TokenState.ACTIVE, position = 51),
+            Token(id = 1, state = TokenState.HOME, position = -1),
+            Token(id = 2, state = TokenState.HOME, position = -1),
+            Token(id = 3, state = TokenState.HOME, position = -1)
+        )
+        val red = redPlayer.copy(tokens = redTokens)
+
+        val gameState = LudoGameState(
+            players = listOf(red, bluePlayer),
+            currentTurnPlayerId = red.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            diceValue = 3, // 51 + 3 = 54 (lane position 2)
+            canRollDice = false,
+            mustSelectToken = true
+        )
+
+        // Act
+        val result = LudoEngine.moveToken(gameState, tokenId = 0)
+
+        // Assert
+        assertTrue("Move should succeed", result is MoveResult.Success)
+        val success = result as MoveResult.Success
+        val movedToken = success.newState.getPlayer(red.id)?.getToken(0)
+
+        // Token should be at lane position 54
+        assertNotNull("Token should exist", movedToken)
+        assertEquals("Token should be at position 54 (lane step 2)", 54, movedToken!!.position)
+        assertEquals("Token should be ACTIVE (still in lane)", TokenState.ACTIVE, movedToken.state)
+        assertTrue("Token should be in lane", movedToken.isInLane)
+        assertEquals("Lane index should be 2", 2, movedToken.laneIndex)
+
+        // Verify the board cell for this position is RED's lane, not GREEN's
+        val redLaneCell = LudoBoard.getLaneCell(LudoColor.RED, 2)
+        val greenLaneCell = LudoBoard.getLaneCell(LudoColor.GREEN, 2)
+
+        assertEquals("RED lane[2] should be (11, 7)", Pair(11, 7), redLaneCell)
+        assertEquals("GREEN lane[2] should be (7, 3)", Pair(7, 3), greenLaneCell)
+        assertNotEquals("RED and GREEN lane[2] should be different cells", redLaneCell, greenLaneCell)
+    }
+
+    @Test
+    fun `token at position 56 rolling 2 or more cannot move - overshoot prevented`() {
+        // Arrange - Token at position 56 (one step from finish at 57)
+        val token = Token(id = 0, state = TokenState.ACTIVE, position = 56)
+
+        // Assert - Can only move with exact roll of 1 (56+1=57=finish)
+        assertTrue("Should move with dice=1 (exact finish)", token.canMove(1))
+        assertFalse("Should NOT move with dice=2 (overshoot)", token.canMove(2))
+        assertFalse("Should NOT move with dice=3 (overshoot)", token.canMove(3))
+        assertFalse("Should NOT move with dice=4 (overshoot)", token.canMove(4))
+        assertFalse("Should NOT move with dice=5 (overshoot)", token.canMove(5))
+        assertFalse("Should NOT move with dice=6 (overshoot)", token.canMove(6))
+    }
+
+    @Test
+    fun `each color has distinct lane cells with no overlap`() {
+        // Collect all lane cells from all colors
+        val allLaneCells = mutableSetOf<Pair<Int, Int>>()
+        val colorLaneCells = mutableMapOf<LudoColor, Set<Pair<Int, Int>>>()
+
+        for (color in LudoColor.entries) {
+            val cells = LudoBoard.LANE_CELLS_BY_COLOR[color]?.toSet() ?: emptySet()
+            colorLaneCells[color] = cells
+
+            // Check for overlap with previously seen cells
+            val overlap = allLaneCells.intersect(cells)
+            assertTrue("$color lane should not overlap with other lanes (found: $overlap)",
+                overlap.isEmpty())
+
+            allLaneCells.addAll(cells)
+        }
+
+        // Verify each color has exactly 6 lane cells
+        for (color in LudoColor.entries) {
+            assertEquals("$color should have exactly 6 lane cells",
+                6, colorLaneCells[color]?.size)
+        }
+
+        // Verify total of 24 distinct lane cells (4 colors × 6 cells)
+        assertEquals("Should have 24 total distinct lane cells", 24, allLaneCells.size)
+    }
+
+    @Test
+    fun `RED token full journey from ring 51 to FINISHED`() {
+        // This test simulates a RED token moving from the last ring cell to FINISHED
+        // Testing the complete path: position 51 → 52 → 53 → 54 → 55 → 56 → 57 (FINISHED)
+        // With FINISH_POSITION=57, position 57 is the finish
+
+        var gameState = LudoGameState(
+            players = listOf(
+                redPlayer.copy(tokens = listOf(
+                    Token(id = 0, state = TokenState.ACTIVE, position = 51),
+                    Token(id = 1, state = TokenState.HOME, position = -1),
+                    Token(id = 2, state = TokenState.HOME, position = -1),
+                    Token(id = 3, state = TokenState.HOME, position = -1)
+                )),
+                bluePlayer
+            ),
+            currentTurnPlayerId = redPlayer.id,
+            gameStatus = GameStatus.IN_PROGRESS,
+            diceValue = 1,
+            canRollDice = false,
+            mustSelectToken = true
+        )
+
+        // Move from 51 to 52 (enter lane)
+        var result = LudoEngine.moveToken(gameState, tokenId = 0)
+        assertTrue("Move 51→52 should succeed", result is MoveResult.Success)
+        var success = result as MoveResult.Success
+        var token = success.newState.getPlayer(redPlayer.id)?.getToken(0)
+        assertEquals("Position should be 52", 52, token?.position)
+        assertTrue("Should be in lane", token?.isInLane == true)
+        assertEquals("Move type should be ENTER_HOME_STRETCH", MoveType.ENTER_HOME_STRETCH, success.move.moveType)
+
+        // Continue moving through lane: 52 → 53 → 54 → 55 → 56 (staying ACTIVE)
+        for (expectedPos in 53..56) {
+            gameState = success.newState.copy(
+                currentTurnPlayerId = redPlayer.id,
+                diceValue = 1,
+                canRollDice = false,
+                mustSelectToken = true
+            )
+            result = LudoEngine.moveToken(gameState, tokenId = 0)
+            assertTrue("Move to $expectedPos should succeed", result is MoveResult.Success)
+            success = result as MoveResult.Success
+            token = success.newState.getPlayer(redPlayer.id)?.getToken(0)
+            assertEquals("Position should be $expectedPos", expectedPos, token?.position)
+            assertTrue("Should still be in lane at $expectedPos", token?.isInLane == true)
+            assertEquals("State should be ACTIVE at $expectedPos", TokenState.ACTIVE, token?.state)
+        }
+
+        // Final move: 56 → 57 (FINISHED)
+        gameState = success.newState.copy(
+            currentTurnPlayerId = redPlayer.id,
+            diceValue = 1,
+            canRollDice = false,
+            mustSelectToken = true
+        )
+        result = LudoEngine.moveToken(gameState, tokenId = 0)
+        assertTrue("Move 56→57 should succeed", result is MoveResult.Success)
+        success = result as MoveResult.Success
+        token = success.newState.getPlayer(redPlayer.id)?.getToken(0)
+
+        // Verify FINISHED state
+        assertEquals("Position should be 57 (FINISH_POSITION)", 57, token?.position)
+        assertEquals("State should be FINISHED", TokenState.FINISHED, token?.state)
+        assertEquals("Move type should be FINISH", MoveType.FINISH, success.move.moveType)
+        assertFalse("Token should NOT be in lane anymore", token?.isInLane == true)
+    }
+
+    // ==================== RENDERING POSITION COORDINATE TESTS ====================
+
+    @Test
+    fun `getGridPosition for RED token at position 56 returns correct RED lane coordinates`() {
+        // Position 56 is lane index 4 (56 - 52 = 4)
+        // RED lane[4] should be (row=9, col=7) per LANE_CELLS_BY_COLOR
+        val boardPos = LudoBoardPositions.getGridPosition(56, LudoColor.RED)
+
+        assertNotNull("Position 56 should have a grid position", boardPos)
+        // BoardPosition(column, row) - so we expect (col=7, row=9)
+        assertEquals("RED pos 56 column should be 7", 7, boardPos!!.column)
+        assertEquals("RED pos 56 row should be 9", 9, boardPos.row)
+
+        // Verify this is NOT in GREEN's lane area (row 7, cols 1-6)
+        assertFalse("RED pos 56 should NOT be at row 7 (GREEN's lane row)",
+            boardPos.row == 7 && boardPos.column in 1..6)
+    }
+
+    @Test
+    fun `getGridPosition for GREEN token at position 56 returns correct GREEN lane coordinates`() {
+        // Position 56 is lane index 4 (56 - 52 = 4)
+        // GREEN lane[4] should be (row=7, col=5) per LANE_CELLS_BY_COLOR
+        val boardPos = LudoBoardPositions.getGridPosition(56, LudoColor.GREEN)
+
+        assertNotNull("Position 56 should have a grid position", boardPos)
+        // BoardPosition(column, row) - so we expect (col=5, row=7)
+        assertEquals("GREEN pos 56 column should be 5", 5, boardPos!!.column)
+        assertEquals("GREEN pos 56 row should be 7", 7, boardPos.row)
+
+        // Verify this is NOT in RED's lane area (col 7, rows 8-13)
+        assertFalse("GREEN pos 56 should NOT be at col 7 (RED's lane column)",
+            boardPos.column == 7 && boardPos.row in 8..13)
+    }
+
+    @Test
+    fun `RED and GREEN position 56 render at completely different coordinates`() {
+        val redPos = LudoBoardPositions.getGridPosition(56, LudoColor.RED)
+        val greenPos = LudoBoardPositions.getGridPosition(56, LudoColor.GREEN)
+
+        assertNotNull("RED pos 56 should have coordinates", redPos)
+        assertNotNull("GREEN pos 56 should have coordinates", greenPos)
+
+        // They must be completely different positions
+        assertNotEquals("RED and GREEN pos 56 should have different coordinates",
+            redPos, greenPos)
+
+        // Specifically: RED is (col=7, row=9), GREEN is (col=5, row=7)
+        assertNotEquals("Column should differ", redPos!!.column, greenPos!!.column)
+        assertNotEquals("Row should differ", redPos.row, greenPos.row)
+    }
+
+    @Test
+    fun `FINISHED position 57 returns null from getGridPosition`() {
+        // FINISHED tokens (position 57) should NOT have a grid position
+        // They are rendered separately in the center area
+        val redFinishedPos = LudoBoardPositions.getGridPosition(57, LudoColor.RED)
+        val greenFinishedPos = LudoBoardPositions.getGridPosition(57, LudoColor.GREEN)
+
+        assertNull("FINISHED position should return null for RED", redFinishedPos)
+        assertNull("FINISHED position should return null for GREEN", greenFinishedPos)
+    }
+
+    @Test
+    fun `all lane positions 52-56 have distinct coordinates per color`() {
+        // Collect all coordinates for all colors
+        // Note: Position 57 is FINISH_POSITION, so we only test 52-56 (active lane positions)
+        val allCoords = mutableMapOf<LudoColor, MutableList<BoardPosition>>()
+
+        for (color in LudoColor.entries) {
+            allCoords[color] = mutableListOf()
+            for (pos in 52..56) {
+                val coord = LudoBoardPositions.getGridPosition(pos, color)
+                assertNotNull("$color at pos $pos should have coordinates", coord)
+                allCoords[color]!!.add(coord!!)
+            }
+        }
+
+        // Verify no overlap between colors
+        for (color1 in LudoColor.entries) {
+            for (color2 in LudoColor.entries) {
+                if (color1 != color2) {
+                    val overlap = allCoords[color1]!!.intersect(allCoords[color2]!!.toSet())
+                    assertTrue("$color1 and $color2 lane coords should not overlap (found: $overlap)",
+                        overlap.isEmpty())
+                }
+            }
+        }
     }
 
     // ==================== HELPER METHODS ====================

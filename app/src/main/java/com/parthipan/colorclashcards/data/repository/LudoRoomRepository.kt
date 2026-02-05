@@ -430,6 +430,39 @@ class LudoRoomRepository {
     }
 
     /**
+     * Get a WAITING room for auto-rejoin (not in-progress or finished games).
+     */
+    suspend fun getWaitingRoom(): Result<ActiveLudoRoomInfo?> {
+        val userId = currentUserId ?: return Result.failure(Exception("Not signed in"))
+
+        return try {
+            val snapshot = roomsCollection
+                .whereEqualTo("status", LudoRoomStatus.WAITING.name)
+                .limit(20)
+                .get()
+                .await()
+
+            for (doc in snapshot.documents) {
+                val room = LudoRoom.fromMap(doc.id, doc.data ?: emptyMap())
+                val isPlayer = room.players.any { it.odId == userId }
+
+                if (isPlayer) {
+                    return Result.success(
+                        ActiveLudoRoomInfo(
+                            roomId = doc.id,
+                            isHost = room.hostId == userId
+                        )
+                    )
+                }
+            }
+
+            Result.success(null)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Get a room by ID.
      */
     suspend fun getRoom(roomId: String): Result<LudoRoom> {

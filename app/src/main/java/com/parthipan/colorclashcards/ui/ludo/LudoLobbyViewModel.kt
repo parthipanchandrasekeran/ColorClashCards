@@ -53,11 +53,11 @@ class LudoLobbyEntryViewModel : ViewModel() {
     }
 
     /**
-     * Check for active room to rejoin.
+     * Check for active room to rejoin (only WAITING rooms, not in-progress games).
      */
     private fun checkActiveRoom() {
         viewModelScope.launch {
-            val result = repository.getActiveRoom()
+            val result = repository.getWaitingRoom()
             result.getOrNull()?.let { activeRoom ->
                 _uiState.value = _uiState.value.copy(
                     joinedRoomId = activeRoom.roomId

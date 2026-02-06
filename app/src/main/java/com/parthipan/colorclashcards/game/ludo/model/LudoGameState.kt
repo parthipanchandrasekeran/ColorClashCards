@@ -154,15 +154,14 @@ data class LudoGameState(
          * @param botCount Number of bot opponents (1-3)
          * @return Initial game state ready to start
          */
-        fun createOfflineGame(humanName: String, botCount: Int): LudoGameState {
+        fun createOfflineGame(humanName: String, botCount: Int, humanColor: LudoColor = LudoColor.RED): LudoGameState {
             require(botCount in 1..3) { "Bot count must be between 1 and 3" }
 
-            val playerCount = botCount + 1
-            val colors = LudoColor.forPlayerCount(playerCount)
+            val botColors = LudoColor.entries.filter { it != humanColor }.take(botCount)
 
-            val humanPlayer = LudoPlayer.human(humanName, colors[0])
-            val botPlayers = (1..botCount).map { index ->
-                LudoPlayer.bot("Bot $index", colors[index])
+            val humanPlayer = LudoPlayer.human(humanName, humanColor)
+            val botPlayers = botColors.mapIndexed { index, color ->
+                LudoPlayer.bot("Bot ${index + 1}", color)
             }
 
             val allPlayers = listOf(humanPlayer) + botPlayers

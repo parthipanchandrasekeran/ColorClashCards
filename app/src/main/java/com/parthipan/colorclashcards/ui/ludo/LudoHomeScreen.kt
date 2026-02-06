@@ -1,6 +1,15 @@
 package com.parthipan.colorclashcards.ui.ludo
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
@@ -55,12 +65,13 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun LudoHomeScreen(
     onBackClick: () -> Unit,
-    onStartOfflineGame: (botCount: Int, difficulty: String) -> Unit = { _, _ -> },
+    onStartOfflineGame: (botCount: Int, difficulty: String, color: String) -> Unit = { _, _, _ -> },
     onPlayOnline: () -> Unit = {}
 ) {
     var showSetup by remember { mutableStateOf(false) }
     var botCount by remember { mutableIntStateOf(1) }
     var difficulty by remember { mutableStateOf("normal") }
+    var selectedColor by remember { mutableStateOf("RED") }
 
     Scaffold(
         topBar = {
@@ -99,24 +110,45 @@ fun LudoHomeScreen(
                 .testTag("ludoHomeScreen"),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (!showSetup) {
-                // Main menu
-                LudoMainMenu(
-                    onPlayVsComputer = { showSetup = true },
-                    onPlayOnline = onPlayOnline
-                )
-            } else {
-                // Setup screen
-                LudoSetupScreen(
-                    botCount = botCount,
-                    onBotCountChange = { botCount = it },
-                    difficulty = difficulty,
-                    onDifficultyChange = { difficulty = it },
-                    onStartGame = {
-                        onStartOfflineGame(botCount, difficulty)
-                    },
-                    onBack = { showSetup = false }
-                )
+            AnimatedContent(
+                targetState = showSetup,
+                transitionSpec = {
+                    if (targetState) {
+                        // Forward: menu -> setup (slide in from right)
+                        (slideInHorizontally(tween(300)) { it / 3 } + fadeIn(tween(300)))
+                            .togetherWith(slideOutHorizontally(tween(300)) { -it / 3 } + fadeOut(tween(300)))
+                    } else {
+                        // Back: setup -> menu (slide in from left)
+                        (slideInHorizontally(tween(300)) { -it / 3 } + fadeIn(tween(300)))
+                            .togetherWith(slideOutHorizontally(tween(300)) { it / 3 } + fadeOut(tween(300)))
+                    }
+                },
+                label = "menuSetupTransition"
+            ) { isSetup ->
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (!isSetup) {
+                        LudoMainMenu(
+                            onPlayVsComputer = { showSetup = true },
+                            onPlayOnline = onPlayOnline
+                        )
+                    } else {
+                        LudoSetupScreen(
+                            botCount = botCount,
+                            onBotCountChange = { botCount = it },
+                            difficulty = difficulty,
+                            onDifficultyChange = { difficulty = it },
+                            selectedColor = selectedColor,
+                            onColorChange = { selectedColor = it },
+                            onStartGame = {
+                                onStartOfflineGame(botCount, difficulty, selectedColor)
+                            },
+                            onBack = { showSetup = false }
+                        )
+                    }
+                }
             }
         }
     }
@@ -222,6 +254,8 @@ private fun LudoSetupScreen(
     onBotCountChange: (Int) -> Unit,
     difficulty: String,
     onDifficultyChange: (String) -> Unit,
+    selectedColor: String,
+    onColorChange: (String) -> Unit,
     onStartGame: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -269,29 +303,60 @@ private fun LudoSetupScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Show player color preview
+            // Interactive color picker
+            Text(
+                text = "Your Color",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Players: ",
-                    style = MaterialTheme.typography.bodyMedium
+                val colorOptions = listOf(
+                    "RED" to LudoBoardColors.Red,
+                    "BLUE" to LudoBoardColors.Blue,
+                    "GREEN" to LudoBoardColors.Green,
+                    "YELLOW" to LudoBoardColors.Yellow
                 )
-                val colors = when (botCount) {
-                    1 -> listOf(LudoBoardColors.Red, LudoBoardColors.Yellow)
-                    2 -> listOf(LudoBoardColors.Red, LudoBoardColors.Blue, LudoBoardColors.Green)
-                    else -> listOf(LudoBoardColors.Red, LudoBoardColors.Blue, LudoBoardColors.Green, LudoBoardColors.Yellow)
-                }
-                colors.forEachIndexed { index, color ->
-                    if (index > 0) Spacer(modifier = Modifier.width(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .clip(CircleShape)
-                            .background(color)
-                    )
+                colorOptions.forEachIndexed { index, (name, color) ->
+                    if (index > 0) Spacer(modifier = Modifier.width(12.dp))
+                    val isSelected = selectedColor == name
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable { onColorChange(name) }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(if (isSelected) 36.dp else 28.dp)
+                                .clip(CircleShape)
+                                .then(
+                                    if (isSelected) Modifier.border(2.dp, Color.White, CircleShape)
+                                        .border(3.dp, Color.DarkGray, CircleShape)
+                                    else Modifier
+                                )
+                                .background(color),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = "Selected",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = name.lowercase().replaceFirstChar { it.uppercase() },
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }

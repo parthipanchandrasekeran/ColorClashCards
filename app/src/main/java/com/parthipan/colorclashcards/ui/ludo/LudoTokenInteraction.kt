@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import com.parthipan.colorclashcards.game.ludo.model.Token
 import com.parthipan.colorclashcards.game.ludo.model.TokenState
+import kotlin.math.sin
 import kotlinx.coroutines.delay
 
 /**
@@ -155,7 +156,9 @@ fun PremiumTokenView(
         val fromY = fromPosition.row * cellSize.value + cellSize.value / 2
         val toY = toPosition.row * cellSize.value + cellSize.value / 2
         val easedProgress = 1f - (1f - animationProgress) * (1f - animationProgress)
-        fromY + (toY - fromY) * easedProgress
+        // Add hop bounce: arc upward during movement
+        val hopBounce = -sin(easedProgress * Math.PI).toFloat() * cellSize.value * 0.3f
+        fromY + (toY - fromY) * easedProgress + hopBounce
     } else if (homeCenterDp != null) {
         // HOME tokens: use pre-computed fractional center (no grid-cell rounding)
         homeCenterDp.second

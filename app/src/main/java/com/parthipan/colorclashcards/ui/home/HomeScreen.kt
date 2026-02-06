@@ -2,6 +2,9 @@ package com.parthipan.colorclashcards.ui.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -350,9 +353,9 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            StatItem(label = "Wins", value = "$totalWins")
-                            StatItem(label = "Games", value = "$totalGames")
-                            StatItem(label = "Win %", value = "$winRate%")
+                            StatItem(label = "Wins", targetValue = totalWins)
+                            StatItem(label = "Games", targetValue = totalGames)
+                            StatItem(label = "Win %", targetValue = winRate, suffix = "%")
                         }
                     }
                 }
@@ -364,13 +367,19 @@ fun HomeScreen(
 }
 
 @Composable
-private fun StatItem(label: String, value: String) {
+private fun StatItem(label: String, targetValue: Int, suffix: String = "") {
+    val animatedValue by animateIntAsState(
+        targetValue = targetValue,
+        animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing),
+        label = "stat_$label"
+    )
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(80.dp)
     ) {
         Text(
-            text = value,
+            text = "$animatedValue$suffix",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = CardGreen

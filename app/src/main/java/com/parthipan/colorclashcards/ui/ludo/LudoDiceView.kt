@@ -28,7 +28,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -39,9 +38,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.view.HapticFeedbackConstants
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -66,15 +68,26 @@ fun LudoDiceView(
     var displayValue by remember { mutableIntStateOf(value ?: 1) }
     val infiniteTransition = rememberInfiniteTransition(label = "dice_roll")
 
-    // Rotation animation when rolling
-    val rotation by infiniteTransition.animateFloat(
+    // X-axis rotation animation when rolling
+    val rotationX by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
             animation = tween(300, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "rotation"
+        label = "rotationX"
+    )
+
+    // Y-axis rotation (500ms period, non-synced with X for natural tumble)
+    val rotationY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotationY"
     )
 
     // Scale animation when rolling
@@ -118,12 +131,16 @@ fun LudoDiceView(
         }
     }
 
-    val currentRotation = if (isRolling) rotation else 0f
+    val currentRotationX = if (isRolling) rotationX else 0f
+    val currentRotationY = if (isRolling) rotationY else 0f
     val currentScale = when {
         isRolling -> scale
         canRoll -> pulseScale
         else -> 1f
     }
+
+    // Haptic feedback on roll tap
+    val view = LocalView.current
 
     Box(
         modifier = Modifier
@@ -154,7 +171,11 @@ fun LudoDiceView(
             modifier = Modifier
                 .size(size)
                 .scale(currentScale)
-                .rotate(currentRotation)
+                .graphicsLayer {
+                    this.rotationX = currentRotationX
+                    this.rotationY = currentRotationY
+                    cameraDistance = 12f * density
+                }
                 .shadow(
                     elevation = if (isRolling) 8.dp else 4.dp,
                     shape = RoundedCornerShape(12.dp)
@@ -172,7 +193,10 @@ fun LudoDiceView(
                     enabled = canRoll && !isRolling,
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = onRoll
+                    onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        onRoll()
+                    }
                 )
                 .testTag("rollDiceButton")
                 .semantics {

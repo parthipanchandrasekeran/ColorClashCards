@@ -19,7 +19,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,6 +44,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,9 +61,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.parthipan.colorclashcards.data.preferences.ThemePreferences
@@ -63,6 +79,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     onBackClick: () -> Unit,
     onSignOut: () -> Unit = {},
+    onSignIn: () -> Unit = {},
     onNavigateToPrivacy: () -> Unit = {},
     themePreferences: ThemePreferences? = null,
     viewModel: SettingsViewModel = viewModel()
@@ -78,6 +95,25 @@ fun SettingsScreen(
     val darkMode by themePreferences?.isDarkMode?.collectAsState(initial = false)
         ?: remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
+
+    // Staggered section entrance
+    var section1Visible by remember { mutableStateOf(false) }
+    var section2Visible by remember { mutableStateOf(false) }
+    var section3Visible by remember { mutableStateOf(false) }
+    var section4Visible by remember { mutableStateOf(false) }
+    var section5Visible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        section1Visible = true
+        delay(100)
+        section2Visible = true
+        delay(100)
+        section3Visible = true
+        delay(100)
+        section4Visible = true
+        delay(100)
+        section5Visible = true
+    }
 
     // Handle sign out completion
     LaunchedEffect(signOutComplete) {
@@ -149,7 +185,7 @@ fun SettingsScreen(
         ) {
             // Account Section
             if (userProfile.isSignedIn) {
-                SettingsSection(title = "Account") {
+                SettingsSection(title = "Account", visible = section1Visible) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -219,46 +255,76 @@ fun SettingsScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                SettingsSection(title = "Account", visible = section1Visible) {
+                    Text(
+                        text = "Sign in to play online and save your progress.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = onSignIn,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CardGreen
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Sign In")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
             // Sound & Haptics Section
-            SettingsSection(title = "Sound & Haptics") {
+            SettingsSection(title = "Sound & Haptics", visible = section2Visible) {
                 SettingsToggle(
                     title = "Sound Effects",
                     subtitle = "Play sounds during gameplay",
                     checked = soundEnabled,
-                    onCheckedChange = { soundEnabled = it }
+                    onCheckedChange = { soundEnabled = it },
+                    icon = Icons.AutoMirrored.Filled.VolumeUp
                 )
                 SettingsToggle(
                     title = "Background Music",
                     subtitle = "Play music while in the app",
                     checked = musicEnabled,
-                    onCheckedChange = { musicEnabled = it }
+                    onCheckedChange = { musicEnabled = it },
+                    icon = Icons.Filled.MusicNote
                 )
                 SettingsToggle(
                     title = "Vibration",
                     subtitle = "Haptic feedback on actions",
                     checked = vibrationEnabled,
-                    onCheckedChange = { vibrationEnabled = it }
+                    onCheckedChange = { vibrationEnabled = it },
+                    icon = Icons.Filled.Vibration
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Notifications Section
-            SettingsSection(title = "Notifications") {
+            SettingsSection(title = "Notifications", visible = section3Visible) {
                 SettingsToggle(
                     title = "Push Notifications",
                     subtitle = "Get notified about game invites",
                     checked = notificationsEnabled,
-                    onCheckedChange = { notificationsEnabled = it }
+                    onCheckedChange = { notificationsEnabled = it },
+                    icon = Icons.Filled.Notifications
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Appearance Section
-            SettingsSection(title = "Appearance") {
+            SettingsSection(title = "Appearance", visible = section4Visible) {
                 SettingsToggle(
                     title = "Dark Mode",
                     subtitle = "Use dark theme",
@@ -267,25 +333,29 @@ fun SettingsScreen(
                         coroutineScope.launch {
                             themePreferences?.setDarkMode(enabled)
                         }
-                    }
+                    },
+                    icon = Icons.Filled.DarkMode
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // About Section
-            SettingsSection(title = "About") {
+            SettingsSection(title = "About", visible = section5Visible) {
                 SettingsItem(
                     title = "Version",
-                    value = "1.0.0"
+                    value = "1.0.0",
+                    icon = Icons.Filled.Info
                 )
                 SettingsItem(
                     title = "Developer",
-                    value = "Parthipan"
+                    value = "Parthipan",
+                    icon = Icons.Filled.Code
                 )
                 SettingsClickableItem(
                     title = "Privacy Policy",
-                    onClick = onNavigateToPrivacy
+                    onClick = onNavigateToPrivacy,
+                    icon = Icons.Filled.Shield
                 )
             }
 
@@ -297,18 +367,35 @@ fun SettingsScreen(
 @Composable
 private fun SettingsSection(
     title: String,
+    visible: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    Column {
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(400), label = "sectionAlpha"
+    )
+    val offsetY by animateFloatAsState(
+        targetValue = if (visible) 0f else 40f,
+        animationSpec = spring(stiffness = Spring.StiffnessLow), label = "sectionOffset"
+    )
+
+    Column(
+        modifier = Modifier.graphicsLayer {
+            this.alpha = alpha
+            translationY = offsetY
+        }
+    ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
-            color = CardRed,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(bottom = 8.dp)
         )
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .animateContentSize(),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant
             )
@@ -327,7 +414,8 @@ private fun SettingsToggle(
     title: String,
     subtitle: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    icon: ImageVector? = null
 ) {
     Row(
         modifier = Modifier
@@ -335,6 +423,15 @@ private fun SettingsToggle(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
@@ -361,7 +458,8 @@ private fun SettingsToggle(
 @Composable
 private fun SettingsItem(
     title: String,
-    value: String
+    value: String,
+    icon: ImageVector? = null
 ) {
     Row(
         modifier = Modifier
@@ -369,6 +467,15 @@ private fun SettingsItem(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+        }
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,
@@ -385,7 +492,8 @@ private fun SettingsItem(
 @Composable
 private fun SettingsClickableItem(
     title: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    icon: ImageVector? = null
 ) {
     Row(
         modifier = Modifier
@@ -394,6 +502,15 @@ private fun SettingsClickableItem(
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+        }
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,

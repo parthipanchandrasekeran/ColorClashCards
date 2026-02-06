@@ -1,7 +1,14 @@
 package com.parthipan.colorclashcards.ui.components
 
+import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,6 +52,7 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -98,7 +106,31 @@ fun GameCardView(
         label = "cardScale"
     )
 
+    // Pulsing glow for playable cards
+    val glowTransition = rememberInfiniteTransition(label = "glow")
+    val glowAlpha by glowTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glowAlpha"
+    )
+    val glowElevation by glowTransition.animateFloat(
+        initialValue = 8f,
+        targetValue = 16f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glowElevation"
+    )
+
     val cornerRadius = 14.dp
+
+    // Haptic feedback
+    val view = LocalView.current
 
     Card(
         modifier = modifier
@@ -108,7 +140,7 @@ fun GameCardView(
             )
             .scale(pressScale)
             .shadow(
-                elevation = if (isPlayable) 12.dp else 4.dp,
+                elevation = if (isPlayable) glowElevation.dp else 4.dp,
                 shape = RoundedCornerShape(cornerRadius),
                 ambientColor = if (isPlayable) baseColor else Color.Black,
                 spotColor = if (isPlayable) baseColor else Color.Black
@@ -119,9 +151,9 @@ fun GameCardView(
                         width = 3.dp,
                         brush = Brush.linearGradient(
                             colors = listOf(
-                                Color.White,
-                                Color.White.copy(alpha = 0.7f),
-                                Color.White
+                                Color.White.copy(alpha = glowAlpha),
+                                Color.White.copy(alpha = glowAlpha * 0.7f),
+                                Color.White.copy(alpha = glowAlpha)
                             )
                         ),
                         shape = RoundedCornerShape(cornerRadius)
@@ -137,7 +169,10 @@ fun GameCardView(
                             tryAwaitRelease()
                             isPressed = false
                         },
-                        onTap = { onClick() }
+                        onTap = {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            onClick()
+                        }
                     )
                 }
             },

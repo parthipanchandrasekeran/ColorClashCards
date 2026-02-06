@@ -32,8 +32,8 @@ android {
         applicationId = "com.parthipan.colorclashcards"
         minSdk = 24
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.0.17"
+        versionCode = 20
+        versionName = "1.0.19"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -74,6 +74,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.androidx.navigation.compose)
 
     // Firebase

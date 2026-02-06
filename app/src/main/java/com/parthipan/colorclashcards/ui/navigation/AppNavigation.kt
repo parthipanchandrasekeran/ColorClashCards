@@ -1,5 +1,9 @@
 package com.parthipan.colorclashcards.ui.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -25,6 +29,7 @@ import com.parthipan.colorclashcards.ui.privacy.PrivacyScreen
 import com.parthipan.colorclashcards.ui.settings.SettingsScreen
 import com.parthipan.colorclashcards.ui.solo.SoloSetupScreen
 import com.parthipan.colorclashcards.ui.splash.SplashScreen
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun AppNavigation(
@@ -32,24 +37,60 @@ fun AppNavigation(
     modifier: Modifier = Modifier,
     themePreferences: ThemePreferences? = null
 ) {
+    val animDuration = 300
     NavHost(
         navController = navController,
         startDestination = NavRoutes.Splash.route,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = {
+            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(animDuration)) + fadeIn(tween(animDuration))
+        },
+        exitTransition = {
+            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(animDuration)) + fadeOut(tween(animDuration))
+        },
+        popEnterTransition = {
+            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(animDuration)) + fadeIn(tween(animDuration))
+        },
+        popExitTransition = {
+            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(animDuration)) + fadeOut(tween(animDuration))
+        }
     ) {
-        composable(NavRoutes.Splash.route) {
+        composable(
+            NavRoutes.Splash.route,
+            enterTransition = { fadeIn(tween(animDuration)) },
+            exitTransition = { fadeOut(tween(animDuration)) }
+        ) {
             SplashScreen(
                 onSplashComplete = {
-                    navController.navigate(NavRoutes.Auth.route) {
+                    navController.navigate(NavRoutes.Auth.createRoute()) {
                         popUpTo(NavRoutes.Splash.route) { inclusive = true }
                     }
                 }
             )
         }
 
-        composable(NavRoutes.Auth.route) {
+        composable(
+            route = NavRoutes.Auth.route,
+            enterTransition = { fadeIn(tween(animDuration)) },
+            exitTransition = { fadeOut(tween(animDuration)) },
+            popEnterTransition = { fadeIn(tween(animDuration)) },
+            popExitTransition = { fadeOut(tween(animDuration)) },
+            arguments = listOf(
+                navArgument("returnRoute") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) { backStackEntry ->
+            val returnRoute = backStackEntry.arguments?.getString("returnRoute") ?: ""
             AuthScreen(
                 onAuthSuccess = {
+                    val destination = if (returnRoute.isNotEmpty()) returnRoute else NavRoutes.GameHub.route
+                    navController.navigate(destination) {
+                        popUpTo(NavRoutes.Auth.route) { inclusive = true }
+                    }
+                },
+                onPlayOffline = {
                     navController.navigate(NavRoutes.GameHub.route) {
                         popUpTo(NavRoutes.Auth.route) { inclusive = true }
                     }
@@ -67,6 +108,9 @@ fun AppNavigation(
                 },
                 onNavigateToSettings = {
                     navController.navigate(NavRoutes.Settings.route)
+                },
+                onSignIn = {
+                    navController.navigate(NavRoutes.Auth.createRoute(returnRoute = NavRoutes.GameHub.route))
                 }
             )
         }
@@ -76,11 +120,15 @@ fun AppNavigation(
                 onBackClick = {
                     navController.popBackStack()
                 },
-                onStartOfflineGame = { botCount, difficulty ->
-                    navController.navigate(NavRoutes.LudoGame.createRoute(botCount, difficulty))
+                onStartOfflineGame = { botCount, difficulty, color ->
+                    navController.navigate(NavRoutes.LudoGame.createRoute(botCount, difficulty, color))
                 },
                 onPlayOnline = {
-                    navController.navigate(NavRoutes.LudoLobbyEntry.route)
+                    if (FirebaseAuth.getInstance().currentUser != null) {
+                        navController.navigate(NavRoutes.LudoLobbyEntry.route)
+                    } else {
+                        navController.navigate(NavRoutes.Auth.createRoute(returnRoute = NavRoutes.LudoLobbyEntry.route))
+                    }
                 }
             )
         }
@@ -89,15 +137,18 @@ fun AppNavigation(
             route = NavRoutes.LudoGame.route,
             arguments = listOf(
                 navArgument("botCount") { type = NavType.IntType },
-                navArgument("difficulty") { type = NavType.StringType }
+                navArgument("difficulty") { type = NavType.StringType },
+                navArgument("color") { type = NavType.StringType }
             )
         ) { backStackEntry ->
             val botCount = backStackEntry.arguments?.getInt("botCount") ?: 1
             val difficulty = backStackEntry.arguments?.getString("difficulty") ?: "normal"
+            val color = backStackEntry.arguments?.getString("color") ?: "RED"
 
             LudoOfflineGameScreen(
                 botCount = botCount,
                 difficulty = difficulty,
+                color = color,
                 onBackClick = {
                     navController.popBackStack(NavRoutes.LudoHome.route, inclusive = false)
                 }
@@ -164,7 +215,11 @@ fun AppNavigation(
                     navController.popBackStack()
                 },
                 onNavigateToPlayOnline = {
-                    navController.navigate(NavRoutes.OnlineLobby.route)
+                    if (FirebaseAuth.getInstance().currentUser != null) {
+                        navController.navigate(NavRoutes.OnlineLobby.route)
+                    } else {
+                        navController.navigate(NavRoutes.Auth.createRoute(returnRoute = NavRoutes.OnlineLobby.route))
+                    }
                 },
                 onNavigateToPlayVsComputer = {
                     navController.navigate(NavRoutes.SoloSetup.route)
@@ -288,9 +343,12 @@ fun AppNavigation(
                     navController.popBackStack()
                 },
                 onSignOut = {
-                    navController.navigate(NavRoutes.Auth.route) {
+                    navController.navigate(NavRoutes.Auth.createRoute()) {
                         popUpTo(0) { inclusive = true }
                     }
+                },
+                onSignIn = {
+                    navController.navigate(NavRoutes.Auth.createRoute(returnRoute = NavRoutes.Settings.route))
                 },
                 onNavigateToPrivacy = {
                     navController.navigate(NavRoutes.Privacy.route)

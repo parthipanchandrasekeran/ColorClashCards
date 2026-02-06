@@ -1,5 +1,8 @@
 package com.parthipan.colorclashcards.ui.ludo
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +30,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,17 +44,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import android.view.HapticFeedbackConstants
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.parthipan.colorclashcards.ui.components.ConfettiOverlay
+import com.parthipan.colorclashcards.ui.components.LudoLoadingSkeleton
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import com.parthipan.colorclashcards.game.ludo.model.LudoPlayer
 import com.parthipan.colorclashcards.game.ludo.model.Token
@@ -64,6 +76,7 @@ import com.parthipan.colorclashcards.game.ludo.model.TokenState
 fun LudoOfflineGameScreen(
     botCount: Int,
     difficulty: String,
+    color: String = "RED",
     onBackClick: () -> Unit,
     viewModel: LudoOfflineViewModel = viewModel()
 ) {
@@ -71,10 +84,20 @@ fun LudoOfflineGameScreen(
 
     // Initialize game on first composition
     LaunchedEffect(Unit) {
-        viewModel.initializeGame(botCount, difficulty)
+        viewModel.initializeGame(botCount, difficulty, color)
     }
 
     val gameState = uiState.gameState
+
+    val topBarColor by animateColorAsState(
+        targetValue = if (gameState != null) {
+            LudoBoardColors.getColor(gameState.currentPlayer.color)
+        } else {
+            LudoBoardColors.Green
+        },
+        animationSpec = tween(500),
+        label = "topBarColor"
+    )
 
     Scaffold(
         topBar = {
@@ -116,11 +139,7 @@ fun LudoOfflineGameScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (gameState != null) {
-                        LudoBoardColors.getColor(gameState.currentPlayer.color)
-                    } else {
-                        LudoBoardColors.Green
-                    },
+                    containerColor = topBarColor,
                     titleContentColor = Color.White,
                     navigationIconContentColor = Color.White,
                     actionIconContentColor = Color.White
@@ -129,15 +148,12 @@ fun LudoOfflineGameScreen(
         }
     ) { paddingValues ->
         if (gameState == null) {
-            // Loading state
-            Box(
+            // Loading state with shimmer skeleton
+            LudoLoadingSkeleton(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("Loading game...")
-            }
+                    .padding(paddingValues)
+            )
         } else {
             Column(
                 modifier = Modifier
@@ -156,7 +172,14 @@ fun LudoOfflineGameScreen(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
 
-                // Game board
+                // Game board - rotate so the player's color faces them at the bottom
+                val boardRotation = when (color.uppercase()) {
+                    "BLUE" -> 90f
+                    "YELLOW" -> 180f
+                    "GREEN" -> 270f
+                    else -> 0f // RED is already at bottom-left
+                }
+
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -175,6 +198,7 @@ fun LudoOfflineGameScreen(
                         animatingTokenId = uiState.animatingTokenId,
                         humanPlayerId = uiState.humanPlayerId,
                         boardSize = boardSize,
+                        boardRotation = boardRotation,
                         onTokenClick = { tokenId ->
                             viewModel.selectToken(tokenId)
                         },
@@ -205,14 +229,25 @@ fun LudoOfflineGameScreen(
 
     // Win dialog
     if (uiState.showWinDialog) {
+        val isHumanWinner = uiState.winnerName == "You"
+
+        // Haptic feedback on win dialog
+        val view = LocalView.current
+        LaunchedEffect(Unit) {
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        }
+
         OfflineWinDialog(
             winnerName = uiState.winnerName ?: "Unknown",
             rankings = uiState.rankings,
             onDismiss = onBackClick,
             onPlayAgain = {
-                viewModel.initializeGame(botCount, difficulty)
+                viewModel.initializeGame(botCount, difficulty, color)
             }
         )
+
+        // Confetti on human win
+        ConfettiOverlay(trigger = isHumanWinner)
     }
 }
 
@@ -244,6 +279,7 @@ private fun OfflineLudoBoardWithInteraction(
     animatingTokenId: Int?,
     humanPlayerId: String,
     boardSize: Dp,
+    boardRotation: Float = 0f,
     onTokenClick: (Int) -> Unit,
     onBoardClick: () -> Unit
 ) {
@@ -275,6 +311,7 @@ private fun OfflineLudoBoardWithInteraction(
     Box(
         modifier = Modifier
             .size(boardSize)
+            .rotate(boardRotation)
             .clip(RoundedCornerShape(8.dp))
             .border(2.dp, Color.DarkGray, RoundedCornerShape(8.dp))
             .clickable(
@@ -462,6 +499,21 @@ private fun OfflineWinDialog(
     onDismiss: () -> Unit,
     onPlayAgain: () -> Unit
 ) {
+    val isHumanWinner = winnerName == "You"
+
+    var dialogVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { dialogVisible = true }
+    val dialogScale by animateFloatAsState(
+        targetValue = if (dialogVisible) 1f else 0.8f,
+        animationSpec = tween(300),
+        label = "dialogScale"
+    )
+    val dialogAlpha by animateFloatAsState(
+        targetValue = if (dialogVisible) 1f else 0f,
+        animationSpec = tween(300),
+        label = "dialogAlpha"
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -470,18 +522,48 @@ private fun OfflineWinDialog(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        scaleX = dialogScale
+                        scaleY = dialogScale
+                        alpha = dialogAlpha
+                    }
             )
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        scaleX = dialogScale
+                        scaleY = dialogScale
+                        alpha = dialogAlpha
+                    }
+            ) {
                 Text(
-                    text = if (winnerName == "You") "You win!" else "$winnerName wins!",
+                    text = if (isHumanWinner) "You Win!" else "Better Luck Next Time!",
                     style = MaterialTheme.typography.titleLarge,
+                    fontWeight = if (isHumanWinner) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isHumanWinner) LudoBoardColors.Green else MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (!isHumanWinner) {
+                    Text(
+                        text = "$winnerName wins!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 if (rankings != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(
+                        color = if (isHumanWinner) LudoBoardColors.Green else MaterialTheme.colorScheme.outlineVariant,
+                        thickness = 2.dp
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     rankings.forEach { (rank, name) ->
                         Text(

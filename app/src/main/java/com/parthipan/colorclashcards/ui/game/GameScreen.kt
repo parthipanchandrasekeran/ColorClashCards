@@ -1,11 +1,15 @@
 package com.parthipan.colorclashcards.ui.game
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import android.content.res.Configuration
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -93,6 +97,7 @@ import com.parthipan.colorclashcards.game.model.Player
 import com.parthipan.colorclashcards.game.model.PlayDirection
 import com.parthipan.colorclashcards.game.model.RoundEndReason
 import com.parthipan.colorclashcards.game.model.TurnPhase
+import com.parthipan.colorclashcards.ui.components.ConfettiOverlay
 import com.parthipan.colorclashcards.ui.components.GameCardView
 import com.parthipan.colorclashcards.ui.theme.CardBlue
 import com.parthipan.colorclashcards.ui.theme.CardGreen
@@ -302,6 +307,8 @@ fun GameScreen(
                         onBackClick()
                     }
                 )
+                // Confetti on human win
+                ConfettiOverlay(trigger = uiState.winnerName == "You")
             }
 
             // Round summary dialog
@@ -326,6 +333,9 @@ fun GameScreen(
             // Final results dialog
             if (uiState.showFinalResults) {
                 uiState.gameState?.let { state ->
+                    val isHumanMatchWinner = state.players
+                        .sortedByDescending { it.totalScore }
+                        .firstOrNull()?.id == humanPlayerId
                     FinalResultsDialog(
                         players = state.players,
                         humanPlayerId = humanPlayerId,
@@ -335,6 +345,8 @@ fun GameScreen(
                             onBackClick()
                         }
                     )
+                    // Confetti on human match win
+                    ConfettiOverlay(trigger = isHumanMatchWinner)
                 }
             }
 
@@ -1481,22 +1493,35 @@ private fun StackedDiscardPile(
                 }
             }
 
-            // Top card with rotation
-            topCard?.let { card ->
-                Box(
-                    modifier = Modifier
-                        .rotate(rotation)
-                        .shadow(8.dp, RoundedCornerShape(14.dp))
-                        .size(width = 95.dp, height = 133.dp)  // 95 * 1.4
-                ) {
-                    GameCardView(
-                        card = card,
-                        modifier = Modifier,
-                        faceDown = false,
-                        isPlayable = false,
-                        onClick = null,
-                        fillParentSize = true
-                    )
+            // Top card with rotation + scale-in animation on card change
+            AnimatedContent(
+                targetState = topCard,
+                contentKey = { it?.id },
+                transitionSpec = {
+                    (scaleIn(
+                        initialScale = 0.5f,
+                        animationSpec = spring(dampingRatio = 0.6f)
+                    ) + fadeIn(animationSpec = tween(200)))
+                        .togetherWith(fadeOut(animationSpec = tween(100)))
+                },
+                label = "discard_card_anim"
+            ) { card ->
+                if (card != null) {
+                    Box(
+                        modifier = Modifier
+                            .rotate(rotation)
+                            .shadow(8.dp, RoundedCornerShape(14.dp))
+                            .size(width = 95.dp, height = 133.dp)
+                    ) {
+                        GameCardView(
+                            card = card,
+                            modifier = Modifier,
+                            faceDown = false,
+                            isPlayable = false,
+                            onClick = null,
+                            fillParentSize = true
+                        )
+                    }
                 }
             }
         }

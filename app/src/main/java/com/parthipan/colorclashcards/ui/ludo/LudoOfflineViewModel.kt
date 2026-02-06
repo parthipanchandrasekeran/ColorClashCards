@@ -76,10 +76,11 @@ class LudoOfflineViewModel(
     /**
      * Initialize a new offline game.
      */
-    fun initializeGame(botCount: Int, difficulty: String) {
+    fun initializeGame(botCount: Int, difficulty: String, colorName: String = "RED") {
         stopAllJobs()
 
-        val gameState = LudoGameState.createOfflineGame("You", botCount)
+        val humanColor = try { LudoColor.valueOf(colorName) } catch (_: Exception) { LudoColor.RED }
+        val gameState = LudoGameState.createOfflineGame("You", botCount, humanColor)
         val humanPlayerId = gameState.players.first { !it.isBot }.id
         val now = timeProvider.currentTimeMillis()
 

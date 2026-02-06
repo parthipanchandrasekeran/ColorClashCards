@@ -5,7 +5,12 @@ package com.parthipan.colorclashcards.ui.navigation
  */
 sealed class NavRoutes(val route: String) {
     object Splash : NavRoutes("splash")
-    object Auth : NavRoutes("auth")
+    object Auth : NavRoutes("auth?returnRoute={returnRoute}") {
+        /** Navigate to Auth with an optional return destination after sign-in. */
+        fun createRoute(returnRoute: String? = null): String {
+            return if (returnRoute != null) "auth?returnRoute=$returnRoute" else "auth"
+        }
+    }
     object GameHub : NavRoutes("game_hub")
     object Home : NavRoutes("home")
     object LudoHome : NavRoutes("ludo_home")
@@ -29,9 +34,9 @@ sealed class NavRoutes(val route: String) {
             return "online_game/$roomId/$isHost"
         }
     }
-    object LudoGame : NavRoutes("ludo_game/{botCount}/{difficulty}") {
-        fun createRoute(botCount: Int, difficulty: String): String {
-            return "ludo_game/$botCount/$difficulty"
+    object LudoGame : NavRoutes("ludo_game/{botCount}/{difficulty}/{color}") {
+        fun createRoute(botCount: Int, difficulty: String, color: String = "RED"): String {
+            return "ludo_game/$botCount/$difficulty/$color"
         }
     }
     object LudoLobbyEntry : NavRoutes("ludo_lobby_entry")

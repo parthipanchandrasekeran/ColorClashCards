@@ -400,10 +400,15 @@ class LudoOfflineViewModel(
         val currentState = _uiState.value
         val gameState = currentState.gameState ?: return
 
+        // Stop timer during animation to prevent autoSkipTurn from
+        // corrupting state while the 650ms animation delay runs
+        stopTurnTimer()
+
         // Start animation
         _uiState.value = currentState.copy(
             isTokenAnimating = true,
-            animatingTokenId = tokenId
+            animatingTokenId = tokenId,
+            showTimer = false
         )
 
         viewModelScope.launch {

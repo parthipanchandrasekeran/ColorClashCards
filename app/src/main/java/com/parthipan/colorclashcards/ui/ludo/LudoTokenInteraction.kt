@@ -1,14 +1,11 @@
 package com.parthipan.colorclashcards.ui.ludo
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -25,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -43,7 +39,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import com.parthipan.colorclashcards.game.ludo.model.Token
-import com.parthipan.colorclashcards.game.ludo.model.TokenState
 import kotlin.math.sin
 import kotlinx.coroutines.delay
 
@@ -363,72 +358,6 @@ fun PathPreviewOverlay(
                 )
             }
         }
-    }
-}
-
-/**
- * Calculate the path positions for a token's movement.
- * Returns list of BoardPositions from current position to destination.
- *
- * @param token The token to move
- * @param color Token's color
- * @param diceValue Number of steps to move
- * @return List of intermediate positions (not including start, including destination)
- */
-fun calculatePathPositions(
-    token: Token,
-    color: LudoColor,
-    diceValue: Int
-): List<BoardPosition> {
-    if (diceValue <= 0) return emptyList()
-
-    val positions = mutableListOf<BoardPosition>()
-    var currentPos = token.position
-
-    // Handle token leaving home
-    if (token.state == TokenState.HOME) {
-        if (diceValue == 6) {
-            // Token exits to starting position (relative 0)
-            LudoBoardPositions.getGridPosition(0, color)?.let {
-                positions.add(it)
-            }
-        }
-        return positions
-    }
-
-    // Calculate each step of the path
-    for (step in 1..diceValue) {
-        val nextPos = currentPos + 1
-
-        // Check if entering home stretch or finishing
-        if (nextPos > 57) {
-            // Would overshoot - invalid move (shouldn't happen if validation is correct)
-            break
-        }
-
-        val boardPos = if (nextPos >= 52) {
-            // In home stretch (positions 52-57)
-            getHomeStretchBoardPosition(nextPos - 52, color)
-        } else {
-            LudoBoardPositions.getGridPosition(nextPos, color)
-        }
-
-        boardPos?.let { positions.add(it) }
-        currentPos = nextPos
-    }
-
-    return positions
-}
-
-/**
- * Get board position for home stretch.
- */
-private fun getHomeStretchBoardPosition(index: Int, color: LudoColor): BoardPosition {
-    return when (color) {
-        LudoColor.RED -> BoardPosition(7, 1 + index)
-        LudoColor.BLUE -> BoardPosition(13 - index, 7)
-        LudoColor.GREEN -> BoardPosition(7, 13 - index)
-        LudoColor.YELLOW -> BoardPosition(1 + index, 7)
     }
 }
 

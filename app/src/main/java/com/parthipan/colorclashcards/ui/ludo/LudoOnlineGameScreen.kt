@@ -298,7 +298,19 @@ fun LudoOnlineGameScreen(
 }
 
 /**
+ * Token with its player context, used for cross-player stacking.
+ */
+private data class OnlineTokenWithContext(
+    val token: Token,
+    val color: LudoColor,
+    val playerId: String,
+    val position: BoardPosition,
+    val homeCenterCellUnits: Pair<Float, Float>? = null
+)
+
+/**
  * Ludo board with premium token interaction for online play.
+ * Groups all tokens by position for correct cross-player stacking.
  */
 @Composable
 private fun OnlineLudoBoardWithInteraction(
@@ -315,6 +327,26 @@ private fun OnlineLudoBoardWithInteraction(
 ) {
     val cellSizeDp = boardSize / 15
     val localPlayer = gameState.players.find { it.id == localPlayerId }
+
+    // Collect all tokens from all players with their positions
+    val allTokensWithContext = remember(gameState) {
+        gameState.players.flatMap { player ->
+            player.tokens.mapNotNull { token ->
+                val position = getTokenBoardPosition(token, player.color)
+                if (position != null) {
+                    val homeCenter = if (token.state == TokenState.HOME) {
+                        LudoBoardPositions.getHomeSlotOffset(player.color, token.id)
+                    } else null
+                    OnlineTokenWithContext(token, player.color, player.id, position, homeCenter)
+                } else null
+            }
+        }
+    }
+
+    // Group tokens by position for stacking
+    val tokensByPosition = remember(gameState) {
+        allTokensWithContext.groupBy { it.position }
+    }
 
     Box(
         modifier = Modifier
@@ -339,66 +371,46 @@ private fun OnlineLudoBoardWithInteraction(
             )
         }
 
-        gameState.players.forEach { player ->
-            val isLocalPlayer = player.id == localPlayerId
-            val tokenSelectableIds = if (isLocalPlayer) selectableTokenIds else emptyList()
+        // Draw tokens grouped by position with stacking offsets
+        tokensByPosition.forEach { (position, tokensAtPosition) ->
+            val stackCount = tokensAtPosition.size
+            val (offsets, stackScale) = calculateStackOffsets(stackCount, cellSizeDp)
 
-            OnlinePremiumPlayerTokens(
-                tokens = player.tokens,
-                color = player.color,
-                selectableTokenIds = tokenSelectableIds,
-                selectedTokenId = if (isLocalPlayer) selectedTokenId else null,
-                isAnimating = isTokenAnimating,
-                animatingTokenId = if (isLocalPlayer) animatingTokenId else null,
-                previewPath = if (isLocalPlayer) previewPath else emptyList(),
-                cellSize = cellSizeDp,
-                onTokenClick = { tokenId ->
-                    if (isLocalPlayer) {
-                        onTokenClick(tokenId)
-                    }
+            tokensAtPosition.forEachIndexed { index, tokenContext ->
+                val offset = offsets.getOrElse(index) { Pair(0.dp, 0.dp) }
+                val isLocalPlayer = tokenContext.playerId == localPlayerId
+                val token = tokenContext.token
+                val isSelected = token.id == selectedTokenId && isLocalPlayer
+                val isThisTokenAnimating = isTokenAnimating && token.id == animatingTokenId && isLocalPlayer
+                val targetPosition = if (isThisTokenAnimating && previewPath.isNotEmpty()) {
+                    previewPath.last()
+                } else null
+
+                val homeCenterDp = tokenContext.homeCenterCellUnits?.let { (cx, cy) ->
+                    Pair(cx * cellSizeDp.value, cy * cellSizeDp.value)
                 }
-            )
-        }
-    }
-}
 
-/**
- * Premium token overlay with animations for online game.
- */
-@Composable
-private fun OnlinePremiumPlayerTokens(
-    tokens: List<Token>,
-    color: LudoColor,
-    selectableTokenIds: List<Int>,
-    selectedTokenId: Int?,
-    isAnimating: Boolean,
-    animatingTokenId: Int?,
-    previewPath: List<BoardPosition>,
-    cellSize: Dp,
-    onTokenClick: (Int) -> Unit
-) {
-    tokens.forEach { token ->
-        val position = getTokenBoardPosition(token, color)
-        if (position != null) {
-            val isSelected = token.id == selectedTokenId
-            val isThisTokenAnimating = isAnimating && token.id == animatingTokenId
-            val targetPosition = if (isThisTokenAnimating && previewPath.isNotEmpty()) {
-                previewPath.last()
-            } else null
-
-            PremiumTokenView(
-                token = token,
-                color = color,
-                isSelectable = token.id in selectableTokenIds,
-                isSelected = isSelected,
-                isAnimating = isThisTokenAnimating,
-                animationProgress = if (isThisTokenAnimating) 1f else 0f,
-                fromPosition = if (isThisTokenAnimating) position else null,
-                toPosition = targetPosition,
-                cellSize = cellSize,
-                boardPosition = position,
-                onClick = { onTokenClick(token.id) }
-            )
+                PremiumTokenView(
+                    token = token,
+                    color = tokenContext.color,
+                    isSelectable = isLocalPlayer && token.id in selectableTokenIds,
+                    isSelected = isSelected,
+                    isAnimating = isThisTokenAnimating,
+                    animationProgress = if (isThisTokenAnimating) 1f else 0f,
+                    fromPosition = if (isThisTokenAnimating) position else null,
+                    toPosition = targetPosition,
+                    cellSize = cellSizeDp,
+                    boardPosition = position,
+                    stackOffset = offset,
+                    stackScale = stackScale,
+                    homeCenterDp = homeCenterDp,
+                    onClick = {
+                        if (isLocalPlayer) {
+                            onTokenClick(token.id)
+                        }
+                    }
+                )
+            }
         }
     }
 }

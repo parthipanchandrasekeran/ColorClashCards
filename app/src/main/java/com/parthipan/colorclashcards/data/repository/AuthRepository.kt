@@ -1,5 +1,6 @@
 package com.parthipan.colorclashcards.data.repository
 
+import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -144,8 +145,7 @@ class AuthRepository(
                     .await()
             }
         } catch (e: Exception) {
-            // Log error but don't fail the sign-in
-            e.printStackTrace()
+            Log.w("AuthRepository", "Failed to save user to Firestore", e)
         }
     }
 }

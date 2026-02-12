@@ -29,6 +29,7 @@ class LudoMatchRepository {
      */
     suspend fun initializeMatch(roomId: String, gameState: LudoGameState): Result<Unit> {
         return try {
+            val userId = currentUserId ?: return Result.failure(Exception("Not signed in"))
             val batch = firestore.batch()
 
             // Write match state
@@ -40,22 +41,18 @@ class LudoMatchRepository {
             val matchState = LudoMatchState.fromGameState(gameState)
             batch.set(stateRef, matchState.toMap())
 
-            // Initialize presence for each player
-            gameState.players.forEach { player ->
-                if (!player.isBot) {
-                    val presenceRef = firestore.collection("ludoRooms")
-                        .document(roomId)
-                        .collection("presence")
-                        .document(player.id)
+            // Only write host's own presence doc (other players write theirs via heartbeat)
+            val presenceRef = firestore.collection("ludoRooms")
+                .document(roomId)
+                .collection("presence")
+                .document(userId)
 
-                    val presence = LudoPlayerPresence(
-                        playerId = player.id,
-                        isOnline = true,
-                        lastSeenAt = Timestamp.now()
-                    )
-                    batch.set(presenceRef, presence.toMap())
-                }
-            }
+            val presence = LudoPlayerPresence(
+                playerId = userId,
+                isOnline = true,
+                lastSeenAt = Timestamp.now()
+            )
+            batch.set(presenceRef, presence.toMap())
 
             // Update room status
             val roomRef = firestore.collection("ludoRooms").document(roomId)
@@ -81,29 +78,6 @@ class LudoMatchRepository {
                 .collection("match")
                 .document("state")
                 .set(matchState.toMap())
-                .await()
-
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Update turn started timestamp (for AFK tracking).
-     */
-    suspend fun updateTurnStarted(roomId: String): Result<Unit> {
-        return try {
-            firestore.collection("ludoRooms")
-                .document(roomId)
-                .collection("match")
-                .document("state")
-                .update(
-                    mapOf(
-                        "turnStartedAt" to Timestamp.now(),
-                        "lastActionAt" to Timestamp.now()
-                    )
-                )
                 .await()
 
             Result.success(Unit)

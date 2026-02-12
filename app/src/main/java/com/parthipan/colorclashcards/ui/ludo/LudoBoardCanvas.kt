@@ -1,7 +1,9 @@
 package com.parthipan.colorclashcards.ui.ludo
 
+import android.graphics.Paint
 import android.util.Log
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
@@ -92,6 +94,8 @@ fun LudoBoardCanvas(
 
         // Draw grid border
         drawTrackGridLines(cellSize)
+
+        // drawRingPositionNumbers(cellSize) // DEBUG: uncomment to show position numbers
     }
 }
 
@@ -453,6 +457,56 @@ private fun DrawScope.drawTrackGridLines(cellSize: Float) {
     )
 }
 
+/**
+ * DEBUG: Draw ring position index numbers on each ring cell.
+ */
+private fun DrawScope.drawRingPositionNumbers(cellSize: Float) {
+    val textPaint = Paint().apply {
+        color = android.graphics.Color.BLACK
+        textSize = cellSize * 0.35f
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+        isAntiAlias = true
+    }
+
+    // Show RED-relative positions (so numbers match token.position for RED player)
+    val redStart = LudoBoard.getStartIndex(LudoColor.RED) // 39
+    LudoBoard.RING_CELLS.forEachIndexed { absIndex, (row, col) ->
+        val relativePos = (absIndex - redStart + LudoBoard.RING_SIZE) % LudoBoard.RING_SIZE
+        // Skip positions beyond RING_END — they map to lane/finish for RED, not ring
+        if (relativePos > LudoBoard.RING_END) return@forEachIndexed
+        val cx = col * cellSize + cellSize / 2
+        val cy = row * cellSize + cellSize / 2 + textPaint.textSize / 3
+        drawContext.canvas.nativeCanvas.drawText(
+            "$relativePos",
+            cx,
+            cy,
+            textPaint
+        )
+    }
+
+    // Also draw lane position numbers for RED (white text on colored lane cells)
+    val laneTextPaint = Paint().apply {
+        color = android.graphics.Color.WHITE
+        textSize = cellSize * 0.35f
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+        isAntiAlias = true
+    }
+    val laneCells = LudoBoard.LANE_CELLS_BY_COLOR[LudoColor.RED] ?: return
+    laneCells.forEachIndexed { laneIndex, (row, col) ->
+        val position = LudoBoard.LANE_START + laneIndex // 51, 52, ..., 56
+        val cx = col * cellSize + cellSize / 2
+        val cy = row * cellSize + cellSize / 2 + laneTextPaint.textSize / 3
+        drawContext.canvas.nativeCanvas.drawText(
+            "$position",
+            cx,
+            cy,
+            laneTextPaint
+        )
+    }
+}
+
 // ==================== BOARD POSITION UTILITIES ====================
 
 /**
@@ -471,15 +525,15 @@ object LudoBoardPositions {
     /**
      * Get the board grid position for a token based on its relative position and color.
      *
-     * IMPORTANT: Lane positions (52-57) are COLOR-SPECIFIC.
+     * IMPORTANT: Lane positions (51-56) are COLOR-SPECIFIC.
      * Each color has its own distinct lane cells leading to the center.
      * The color parameter MUST match the token's owning player's color.
      *
      * Position ranges:
      * - -1: HOME (not handled here, use getHomeBasePositions)
-     * - 0-51: Ring/track (shared, uses absolute position)
-     * - 52-56: Lane (color-specific, 5 cells before finish)
-     * - 57: FINISHED (last lane cell = finish, use getFinishPosition for rendering)
+     * - 0-50: Ring/track (shared, uses absolute position)
+     * - 51-55: Lane (color-specific, 5 cells before finish)
+     * - 56: FINISHED (last lane cell = finish, use getFinishPosition for rendering)
      */
     fun getGridPosition(relativePosition: Int, color: LudoColor): BoardPosition? {
         if (relativePosition < 0) return null
@@ -520,7 +574,7 @@ object LudoBoardPositions {
             return BoardPosition(cell.second, cell.first)
         }
 
-        // Ring positions (0-51) - use absolute position for rendering
+        // Ring positions (0-50) - use absolute position for rendering
         val absoluteIndex = LudoBoard.toAbsolutePosition(relativePosition, color)
         if (absoluteIndex < 0) return null
 

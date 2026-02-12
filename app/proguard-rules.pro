@@ -11,6 +11,10 @@
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 
+# Play In-App Update
+-keep class com.google.android.play.core.** { *; }
+-dontwarn com.google.android.play.core.**
+
 # Firebase Auth
 -keepattributes Signature
 -keepattributes *Annotation*
@@ -39,4 +43,10 @@
 -keepclassmembers enum * {
     public static **[] values();
     public static ** valueOf(java.lang.String);
+}
+
+# Strip debug/verbose logging in release builds
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
 }

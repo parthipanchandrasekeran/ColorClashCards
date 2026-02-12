@@ -42,13 +42,13 @@ object LudoBoard {
     const val HOME_POSITION = -1
 
     /** Position value for finished tokens (last lane cell, index 5) */
-    const val FINISH_POSITION = 57
+    const val FINISH_POSITION = 56
 
     /** First position of finish lane (relative) */
-    const val LANE_START = 52
+    const val LANE_START = 51
 
     /** Last position on the outer ring (relative) */
-    const val RING_END = 51
+    const val RING_END = 50
 
     // ==================== RING PATH (52 cells, clockwise) ====================
     // IMPORTANT: This is the FINALIZED ring path. Do not reverse/rotate after definition.
@@ -70,11 +70,10 @@ object LudoBoard {
      *
      * Starts: 0, 13, 26, 39 (all 13 apart)
      * Stars: 8, 21, 34, 47 (all at start+8)
-     * Lane entries: 51, 12, 25, 38 (one before each start)
+     * Lane entries: 50, 11, 24, 37 (tip cells, two before each start)
      */
     val RING_CELLS: List<Pair<Int, Int>> = listOf(
         // === LEFT ARM → TOP ARM: GREEN section (indices 0-12) ===
-        // Row 6 going RIGHT, diagonal up into top arm, col 6 going UP, across top, col 8
         Pair(6, 1),   //  0 - GREEN START
         Pair(6, 2),   //  1
         Pair(6, 3),   //  2
@@ -90,7 +89,6 @@ object LudoBoard {
         Pair(0, 8),   // 12
 
         // === TOP ARM → RIGHT ARM: YELLOW section (indices 13-25) ===
-        // Col 8 going DOWN, diagonal right into right arm, row 6 going RIGHT, tip, row 8
         Pair(1, 8),   // 13 - YELLOW START
         Pair(2, 8),   // 14
         Pair(3, 8),   // 15
@@ -106,7 +104,6 @@ object LudoBoard {
         Pair(8, 14),  // 25
 
         // === RIGHT ARM → BOTTOM ARM: BLUE section (indices 26-38) ===
-        // Row 8 going LEFT, diagonal down into bottom arm, col 8 going DOWN, tip, col 6
         Pair(8, 13),  // 26 - BLUE START
         Pair(8, 12),  // 27
         Pair(8, 11),  // 28
@@ -122,7 +119,6 @@ object LudoBoard {
         Pair(14, 6),  // 38
 
         // === BOTTOM ARM → LEFT ARM: RED section (indices 39-51) ===
-        // Col 6 going UP, diagonal left into left arm, row 8 going LEFT, tip, row 6
         Pair(13, 6),  // 39 - RED START
         Pair(12, 6),  // 40
         Pair(11, 6),  // 41
@@ -135,7 +131,7 @@ object LudoBoard {
         Pair(8, 1),   // 48
         Pair(8, 0),   // 49
         Pair(7, 0),   // 50 - left tip
-        Pair(6, 0)    // 51 - last cell, wraps to 0 or enters GREEN's lane
+        Pair(6, 0)    // 51
     )
 
     // ==================== START POSITIONS ====================
@@ -276,11 +272,12 @@ object LudoBoard {
     }
 
     // Safe logging that works in both Android and unit tests
+    // Note: Log.d calls are stripped by R8/ProGuard in release builds
     private fun log(message: String) {
         try {
             android.util.Log.d("LudoBoard", message)
         } catch (e: Throwable) {
-            println("[LudoBoard] $message")
+            // Unit test environment — skip
         }
     }
 
@@ -380,13 +377,13 @@ object LudoBoard {
      * Lane entry ring index by color.
      * After passing this index, the token enters its finish lane instead of continuing on ring.
      *
-     * COMPUTED: Each color enters their lane at (startIndex - 1 + 52) % 52,
-     * i.e., one step before their own start position.
+     * COMPUTED: Each color enters their lane at (startIndex - 2 + 52) % 52,
+     * i.e., at the tip cell (two steps before their own start position).
      */
     val LANE_ENTRY_INDEX_BY_COLOR: Map<LudoColor, Int> by lazy {
         LudoColor.entries.associateWith { color ->
             val startIndex = START_INDEX_BY_COLOR[color] ?: 0
-            (startIndex - 1 + RING_SIZE) % RING_SIZE
+            (startIndex - 2 + RING_SIZE) % RING_SIZE
         }.also { entries ->
             log("Lane entries: $entries")
         }

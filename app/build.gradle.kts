@@ -32,8 +32,8 @@ android {
         applicationId = "com.parthipan.colorclashcards"
         minSdk = 24
         targetSdk = 35
-        versionCode = 21
-        versionName = "1.0.20"
+        versionCode = 31
+        versionName = "1.0.30"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -61,6 +61,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -91,6 +92,10 @@ dependencies {
 
     // DataStore for preferences
     implementation(libs.datastore.preferences)
+
+    // Play In-App Update
+    implementation(libs.play.app.update)
+    implementation(libs.play.app.update.ktx)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

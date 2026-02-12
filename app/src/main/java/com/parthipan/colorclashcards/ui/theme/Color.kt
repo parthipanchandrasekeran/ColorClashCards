@@ -24,6 +24,16 @@ val Purple40 = Color(0xFF6650a4)
 val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)
 
+// Light gradient variants
+val CardRedLight = Color(0xFFFF8A80)
+val CardBlueLight = Color(0xFF82B1FF)
+val CardGreenLight = Color(0xFF69F0AE)
+val CardYellowLight = Color(0xFFFFE57F)
+
+// Celebration colors
+val Gold = Color(0xFFFFD700)
+val GoldLight = Color(0xFFFFE082)
+
 // Background
 val LightBackground = Color(0xFFFFFBFE)
 val DarkBackground = Color(0xFF1C1B1F)

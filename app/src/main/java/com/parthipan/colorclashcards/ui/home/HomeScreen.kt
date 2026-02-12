@@ -3,8 +3,14 @@ package com.parthipan.colorclashcards.ui.home
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,12 +53,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.parthipan.colorclashcards.ui.components.GradientButton
+import com.parthipan.colorclashcards.ui.components.StaggeredEntrance
+import com.parthipan.colorclashcards.ui.components.floatingShapes
+import com.parthipan.colorclashcards.ui.components.pulsingBorder
 import com.parthipan.colorclashcards.ui.theme.CardBlue
 import com.parthipan.colorclashcards.ui.theme.CardGreen
 import com.parthipan.colorclashcards.ui.theme.CardRed
@@ -73,10 +86,8 @@ fun HomeScreen(
     val scrollState = rememberScrollState()
     var showLeaveConfirmDialog by remember { mutableStateOf(false) }
 
-    // Check if there's an active game that would be abandoned
     val hasActiveGame = uiState.activeGame != null
 
-    // Handle system back button
     BackHandler {
         if (hasActiveGame) {
             showLeaveConfirmDialog = true
@@ -85,7 +96,6 @@ fun HomeScreen(
         }
     }
 
-    // Leave confirmation dialog
     if (showLeaveConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showLeaveConfirmDialog = false },
@@ -111,7 +121,6 @@ fun HomeScreen(
         )
     }
 
-    // Sample stats - in a real app these would come from a repository
     val totalGames = 0
     val totalWins = 0
     val winRate = if (totalGames > 0) (totalWins * 100 / totalGames) else 0
@@ -153,6 +162,18 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                )
+                .floatingShapes(
+                    colors = listOf(CardRed, CardBlue, CardGreen, CardYellow),
+                    shapeType = "rect"
+                )
                 .padding(paddingValues)
                 .verticalScroll(scrollState)
                 .padding(24.dp)
@@ -161,73 +182,105 @@ fun HomeScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Card colors preview
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf(CardRed, CardBlue, CardGreen, CardYellow).forEach { color ->
-                    Card(
-                        modifier = Modifier.size(48.dp),
-                        colors = CardDefaults.cardColors(containerColor = color),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize())
+            // Card colors preview with subtle rotation animation
+            val rotTransition = rememberInfiniteTransition(label = "card_rot")
+            StaggeredEntrance(index = 0) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(CardRed, CardBlue, CardGreen, CardYellow).forEachIndexed { index, color ->
+                        val rotAngle by rotTransition.animateFloat(
+                            initialValue = -3f,
+                            targetValue = 3f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(
+                                    durationMillis = 2000 + index * 500,
+                                    easing = LinearEasing
+                                ),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "card_rot_$index"
+                        )
+                        Card(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .graphicsLayer { rotationZ = rotAngle }
+                                .shadow(
+                                    elevation = 4.dp,
+                                    shape = RoundedCornerShape(8.dp),
+                                    ambientColor = color.copy(alpha = 0.3f),
+                                    spotColor = color.copy(alpha = 0.3f)
+                                ),
+                            colors = CardDefaults.cardColors(containerColor = color),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize())
+                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Subtitle
-            Text(
-                text = "Fast color & number matching card game",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+            StaggeredEntrance(index = 1) {
+                Text(
+                    text = "Fast color & number matching card game",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Rejoin Game button (shown when there's an active game)
+            // Rejoin Game button with pulsing border
             AnimatedVisibility(visible = uiState.activeGame != null) {
                 Column {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = CardYellow.copy(alpha = 0.2f)
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "You have an active game!",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
+                    StaggeredEntrance(index = 2) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .pulsingBorder(
+                                    color = CardYellow,
+                                    enabled = true,
+                                    cornerRadius = 12.dp
+                                ),
+                            colors = CardDefaults.cardColors(
+                                containerColor = CardYellow.copy(alpha = 0.2f)
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = {
-                                    uiState.activeGame?.let { game ->
-                                        onRejoinGame(game.roomId, game.isHost)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = CardYellow)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Rejoin Game",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    text = "You have an active game!",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
                                 )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = {
+                                        uiState.activeGame?.let { game ->
+                                            onRejoinGame(game.roomId, game.isHost)
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CardYellow)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Rejoin Game",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
                             }
                         }
                     }
@@ -235,127 +288,131 @@ fun HomeScreen(
                 }
             }
 
-            // Primary buttons - Play Online and Play vs Computer
-            Button(
-                onClick = onNavigateToPlayOnline,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CardGreen),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Play Online",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+            // Primary buttons - Gradient
+            StaggeredEntrance(index = 3) {
+                GradientButton(
+                    onClick = onNavigateToPlayOnline,
+                    gradientColors = listOf(CardGreen, Color(0xFF2E7D32)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Play Online",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Button(
-                onClick = onNavigateToPlayVsComputer,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CardGreen),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Play vs Computer",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Secondary buttons - How to Play and Settings as text buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                TextButton(
-                    onClick = onNavigateToHowToPlay
+            StaggeredEntrance(index = 4) {
+                GradientButton(
+                    onClick = onNavigateToPlayVsComputer,
+                    gradientColors = listOf(CardBlue, Color(0xFF1565C0)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Info,
+                        imageVector = Icons.Default.PlayArrow,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "How to Play",
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
-
-                TextButton(
-                    onClick = onNavigateToSettings
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Settings",
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Stats card - improved layout
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "Your Stats",
+                        text = "Play vs Computer",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
 
-                    if (totalGames == 0) {
-                        // Empty state
-                        Text(
-                            text = "Start a match to see stats",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Secondary buttons
+            StaggeredEntrance(index = 5) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    TextButton(
+                        onClick = onNavigateToHowToPlay
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
                         )
-                    } else {
-                        // Stats row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            StatItem(label = "Wins", targetValue = totalWins)
-                            StatItem(label = "Games", targetValue = totalGames)
-                            StatItem(label = "Win %", targetValue = winRate, suffix = "%")
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "How to Play",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+
+                    TextButton(
+                        onClick = onNavigateToSettings
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Settings",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Stats card
+            StaggeredEntrance(index = 6) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Your Stats",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        if (totalGames == 0) {
+                            Text(
+                                text = "Start a match to see stats",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                StatItem(label = "Wins", targetValue = totalWins)
+                                StatItem(label = "Games", targetValue = totalGames)
+                                StatItem(label = "Win %", targetValue = winRate, suffix = "%")
+                            }
                         }
                     }
                 }

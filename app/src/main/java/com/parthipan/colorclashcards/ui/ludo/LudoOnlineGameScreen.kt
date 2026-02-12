@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.parthipan.colorclashcards.ui.components.CelebrationOverlay
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import com.parthipan.colorclashcards.game.ludo.model.LudoPlayer
 import com.parthipan.colorclashcards.game.ludo.model.Token
@@ -229,6 +230,7 @@ fun LudoOnlineGameScreen(
                                 previewPath = uiState.previewPath,
                                 isTokenAnimating = uiState.isTokenAnimating,
                                 animatingTokenId = uiState.animatingTokenId,
+                                animationProgress = uiState.animationProgress,
                                 localPlayerId = uiState.localPlayerId,
                                 boardSize = boardSize,
                                 onTokenClick = { tokenId ->
@@ -278,13 +280,18 @@ fun LudoOnlineGameScreen(
         }
     }
 
-    // Win dialog
+    // Win celebration overlay
     if (uiState.showWinDialog) {
-        OnlineWinDialog(
-            winnerName = uiState.winnerName ?: "Unknown",
-            isWinner = uiState.winnerName == "You" ||
-                       gameState?.winner?.id == uiState.localPlayerId,
-            onDismiss = onBackClick
+        val isWinner = uiState.winnerName == "You" ||
+                       gameState?.winner?.id == uiState.localPlayerId
+        val winnerName = uiState.winnerName ?: "Unknown"
+
+        CelebrationOverlay(
+            isWinner = isWinner,
+            title = if (isWinner) "You Win!" else "Game Over",
+            subtitle = if (isWinner) "Congratulations! You won the game!" else "$winnerName wins!",
+            winnerColor = LudoBoardColors.Blue,
+            secondaryAction = "Exit" to onBackClick
         )
     }
 
@@ -320,6 +327,7 @@ private fun OnlineLudoBoardWithInteraction(
     previewPath: List<BoardPosition>,
     isTokenAnimating: Boolean,
     animatingTokenId: Int?,
+    animationProgress: Float = 0f,
     localPlayerId: String,
     boardSize: Dp,
     onTokenClick: (Int) -> Unit,
@@ -344,8 +352,12 @@ private fun OnlineLudoBoardWithInteraction(
     }
 
     // Group tokens by position for stacking
-    val tokensByPosition = remember(gameState) {
+    // Sort so local player's tokens render last (on top) for easier tapping
+    val tokensByPosition = remember(gameState, localPlayerId) {
         allTokensWithContext.groupBy { it.position }
+            .mapValues { (_, tokens) ->
+                tokens.sortedBy { if (it.playerId == localPlayerId) 1 else 0 }
+            }
     }
 
     Box(
@@ -362,10 +374,10 @@ private fun OnlineLudoBoardWithInteraction(
     ) {
         LudoBoardCanvas(modifier = Modifier.fillMaxSize())
 
-        // Draw path preview if a token is selected
+        // Draw destination marker if a token is selected (show only final cell)
         if (selectedTokenId != null && previewPath.isNotEmpty() && localPlayer != null) {
             PathPreviewOverlay(
-                pathPositions = previewPath,
+                pathPositions = listOf(previewPath.last()),
                 tokenColor = localPlayer.color,
                 cellSize = cellSizeDp
             )
@@ -382,9 +394,13 @@ private fun OnlineLudoBoardWithInteraction(
                 val token = tokenContext.token
                 val isSelected = token.id == selectedTokenId && isLocalPlayer
                 val isThisTokenAnimating = isTokenAnimating && token.id == animatingTokenId && isLocalPlayer
-                val targetPosition = if (isThisTokenAnimating && previewPath.isNotEmpty()) {
-                    previewPath.last()
-                } else null
+
+                // Animate straight line from current position to destination
+                val (fromPos, toPos, segmentProgress) = if (isThisTokenAnimating && previewPath.isNotEmpty()) {
+                    Triple(position, previewPath.last(), animationProgress)
+                } else {
+                    Triple(null, null, 0f)
+                }
 
                 val homeCenterDp = tokenContext.homeCenterCellUnits?.let { (cx, cy) ->
                     Pair(cx * cellSizeDp.value, cy * cellSizeDp.value)
@@ -396,9 +412,9 @@ private fun OnlineLudoBoardWithInteraction(
                     isSelectable = isLocalPlayer && token.id in selectableTokenIds,
                     isSelected = isSelected,
                     isAnimating = isThisTokenAnimating,
-                    animationProgress = if (isThisTokenAnimating) 1f else 0f,
-                    fromPosition = if (isThisTokenAnimating) position else null,
-                    toPosition = targetPosition,
+                    animationProgress = segmentProgress,
+                    fromPosition = fromPos,
+                    toPosition = toPos,
                     cellSize = cellSizeDp,
                     boardPosition = position,
                     stackOffset = offset,
@@ -584,48 +600,6 @@ private fun AfkWarningCard(countdown: Int) {
     }
 }
 
-/**
- * Win dialog for online game.
- */
-@Composable
-private fun OnlineWinDialog(
-    winnerName: String,
-    isWinner: Boolean,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = Modifier.testTag("winDialog"),
-        title = {
-            Text(
-                text = if (isWinner) "You Win!" else "Game Over",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("winDialogTitle")
-            )
-        },
-        text = {
-            Text(
-                text = if (isWinner) {
-                    "Congratulations! You won the game!"
-                } else {
-                    if (winnerName == "You") "You win!" else "$winnerName wins!"
-                },
-                style = MaterialTheme.typography.titleMedium,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            Button(onClick = onDismiss) {
-                Text("Exit")
-            }
-        }
-    )
-}
 
 /**
  * Game ended dialog (for dropouts).

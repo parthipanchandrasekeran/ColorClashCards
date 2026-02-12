@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -112,7 +113,14 @@ fun LudoDiceView(
         label = "pulse"
     )
 
-    // Update display value rapidly when rolling
+    // Haptic feedback
+    val view = LocalView.current
+
+    // Particle burst state
+    var showParticleBurst by remember { mutableStateOf(false) }
+    val burstProgress = remember { Animatable(0f) }
+
+    // Update display value rapidly when rolling, trigger burst on stop
     LaunchedEffect(isRolling) {
         if (isRolling) {
             while (true) {
@@ -121,6 +129,16 @@ fun LudoDiceView(
             }
         } else if (value != null) {
             displayValue = value
+            // Enhanced haptic on dice landing
+            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            // Trigger particle burst
+            showParticleBurst = true
+            burstProgress.snapTo(0f)
+            burstProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(500, easing = FastOutSlowInEasing)
+            )
+            showParticleBurst = false
         }
     }
 
@@ -138,9 +156,6 @@ fun LudoDiceView(
         canRoll -> pulseScale
         else -> 1f
     }
-
-    // Haptic feedback on roll tap
-    val view = LocalView.current
 
     Box(
         modifier = Modifier
@@ -164,6 +179,36 @@ fun LudoDiceView(
                         )
                     )
             )
+        }
+
+        // Particle burst on roll result
+        if (showParticleBurst) {
+            val progress = burstProgress.value
+            Canvas(
+                modifier = Modifier.size(size + 16.dp)
+            ) {
+                val center = this.center
+                val burstRadius = (size.toPx() * 0.8f) * progress
+                val particleCount = 12
+                val particleAlpha = (1f - progress).coerceAtLeast(0f)
+                for (i in 0 until particleCount) {
+                    val angle = (i * 360f / particleCount) + (progress * 30f)
+                    val rad = Math.toRadians(angle.toDouble())
+                    val px = center.x + burstRadius * kotlin.math.cos(rad).toFloat()
+                    val py = center.y + burstRadius * kotlin.math.sin(rad).toFloat()
+                    val dotColor = when (i % 4) {
+                        0 -> Color(0xFFE53935) // Red
+                        1 -> Color(0xFF1E88E5) // Blue
+                        2 -> Color(0xFF43A047) // Green
+                        else -> Color(0xFFFFB300) // Yellow
+                    }
+                    drawCircle(
+                        color = dotColor.copy(alpha = particleAlpha * 0.8f),
+                        radius = 3f * (1f - progress * 0.5f),
+                        center = Offset(px, py)
+                    )
+                }
+            }
         }
 
         // Dice body
@@ -283,6 +328,12 @@ private fun DiceFace(
                 color = dotColor,
                 radius = dotRadius,
                 center = position
+            )
+            // Inner highlight for 3D inset look
+            drawCircle(
+                color = Color.White.copy(alpha = 0.15f),
+                radius = dotRadius * 0.45f,
+                center = Offset(position.x - dotRadius * 0.2f, position.y - dotRadius * 0.2f)
             )
         }
     }

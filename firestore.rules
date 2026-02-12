@@ -95,5 +95,78 @@ service cloud.firestore {
         allow delete: if isAuth() && isHost(roomId);
       }
     }
+
+    // ========== LUDO ROOMS ==========
+
+    // Check if user is the host of a Ludo room
+    function isLudoHost(roomId) {
+      return get(/databases/$(database)/documents/ludoRooms/$(roomId)).data.hostId == uid();
+    }
+
+    // ========== DEBUG LOGS (TEMPORARY) ==========
+    // Remove once the "token beyond home path" bug is resolved.
+
+    match /debug_logs/{logId} {
+      // Any authenticated user can create a debug log
+      allow create: if isAuth();
+
+      // Only readable for admin (no client reads needed)
+      allow read: if false;
+
+      // No updates or deletes from client
+      allow update, delete: if false;
+    }
+
+    match /ludoRooms/{roomId} {
+      // Any authenticated user can read rooms
+      // (needed for join-by-code queries and public room listing;
+      //  room code acts as access control for joining)
+      allow read: if isAuth();
+
+      // Anyone authenticated can create a room (they become host)
+      allow create: if isAuth() && request.resource.data.hostId == uid();
+
+      // Any authenticated user can update (join, setReady, leave, etc.)
+      // App-level logic enforces host-only operations (startGame, endGame)
+      allow update: if isAuth();
+
+      // Only host can delete room
+      allow delete: if isAuth() && isLudoHost(roomId);
+
+      // ========== MATCH STATE ==========
+
+      match /match/state {
+        // Any authenticated user can read game state
+        allow read: if isAuth();
+
+        // Only host can write game state
+        allow write: if isAuth() && isLudoHost(roomId);
+      }
+
+      // ========== PRESENCE ==========
+
+      match /presence/{playerId} {
+        // Any authenticated user can read presence
+        allow read: if isAuth();
+
+        // Players can only write their own presence
+        allow write: if isAuth() && playerId == uid();
+      }
+
+      // ========== ACTIONS SUBCOLLECTION ==========
+
+      match /actions/{actionId} {
+        // Any authenticated user can read actions
+        allow read: if isAuth();
+
+        // Any authenticated user can create actions for themselves
+        allow create: if isAuth()
+          && request.resource.data.playerId == uid();
+
+        // Only host can update/delete actions
+        allow update: if isAuth() && isLudoHost(roomId);
+        allow delete: if isAuth() && isLudoHost(roomId);
+      }
+    }
   }
 }

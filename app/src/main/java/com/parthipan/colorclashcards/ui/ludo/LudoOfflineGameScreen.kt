@@ -26,18 +26,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -53,15 +49,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import android.view.HapticFeedbackConstants
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.parthipan.colorclashcards.ui.components.ConfettiOverlay
+import com.parthipan.colorclashcards.ui.components.CelebrationOverlay
 import com.parthipan.colorclashcards.ui.components.LudoLoadingSkeleton
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import com.parthipan.colorclashcards.game.ludo.model.LudoPlayer
@@ -81,6 +77,7 @@ fun LudoOfflineGameScreen(
     viewModel: LudoOfflineViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
 
     // Initialize game on first composition
     LaunchedEffect(Unit) {
@@ -196,6 +193,7 @@ fun LudoOfflineGameScreen(
                         previewPath = uiState.previewPath,
                         isTokenAnimating = uiState.isTokenAnimating,
                         animatingTokenId = uiState.animatingTokenId,
+                        animationProgress = uiState.animationProgress,
                         humanPlayerId = uiState.humanPlayerId,
                         boardSize = boardSize,
                         boardRotation = boardRotation,
@@ -227,27 +225,25 @@ fun LudoOfflineGameScreen(
         }
     }
 
-    // Win dialog
+    // Win celebration overlay
     if (uiState.showWinDialog) {
         val isHumanWinner = uiState.winnerName == "You"
+        val winnerName = uiState.winnerName ?: "Unknown"
 
-        // Haptic feedback on win dialog
-        val view = LocalView.current
-        LaunchedEffect(Unit) {
-            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-        }
-
-        OfflineWinDialog(
-            winnerName = uiState.winnerName ?: "Unknown",
+        CelebrationOverlay(
+            isWinner = isHumanWinner,
+            title = if (isHumanWinner) "You Win!" else "Game Over",
+            subtitle = if (isHumanWinner) "Congratulations!" else "$winnerName wins!",
+            winnerColor = LudoBoardColors.Green,
             rankings = uiState.rankings,
-            onDismiss = onBackClick,
-            onPlayAgain = {
+            primaryAction = "Play Again" to {
                 viewModel.initializeGame(botCount, difficulty, color)
+            },
+            secondaryAction = "Exit" to onBackClick,
+            tertiaryAction = "Copy Debug Log" to {
+                clipboardManager.setText(AnnotatedString(viewModel.getDebugLog()))
             }
         )
-
-        // Confetti on human win
-        ConfettiOverlay(trigger = isHumanWinner)
     }
 }
 
@@ -277,6 +273,7 @@ private fun OfflineLudoBoardWithInteraction(
     previewPath: List<BoardPosition>,
     isTokenAnimating: Boolean,
     animatingTokenId: Int?,
+    animationProgress: Float = 0f,
     humanPlayerId: String,
     boardSize: Dp,
     boardRotation: Float = 0f,
@@ -304,8 +301,12 @@ private fun OfflineLudoBoardWithInteraction(
     }
 
     // Group tokens by position for stacking
-    val tokensByPosition = remember(gameState) {
+    // Sort so human player's tokens render last (on top) for easier tapping
+    val tokensByPosition = remember(gameState, humanPlayerId) {
         allTokensWithContext.groupBy { it.position }
+            .mapValues { (_, tokens) ->
+                tokens.sortedBy { if (it.playerId == humanPlayerId) 1 else 0 }
+            }
     }
 
     Box(
@@ -326,10 +327,10 @@ private fun OfflineLudoBoardWithInteraction(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Draw path preview if a token is selected
+        // Draw destination marker if a token is selected (show only final cell)
         if (selectedTokenId != null && previewPath.isNotEmpty() && humanPlayer != null) {
             PathPreviewOverlay(
-                pathPositions = previewPath,
+                pathPositions = listOf(previewPath.last()),
                 tokenColor = humanPlayer.color,
                 cellSize = cellSizeDp
             )
@@ -346,9 +347,13 @@ private fun OfflineLudoBoardWithInteraction(
                 val token = tokenContext.token
                 val isSelected = token.id == selectedTokenId && isHumanPlayer
                 val isThisTokenAnimating = isTokenAnimating && token.id == animatingTokenId && isHumanPlayer
-                val targetPosition = if (isThisTokenAnimating && previewPath.isNotEmpty()) {
-                    previewPath.last()
-                } else null
+
+                // Animate straight line from current position to destination
+                val (fromPos, toPos, segmentProgress) = if (isThisTokenAnimating && previewPath.isNotEmpty()) {
+                    Triple(position, previewPath.last(), animationProgress)
+                } else {
+                    Triple(null, null, 0f)
+                }
 
                 // For HOME tokens, pass absolute center in dp for precise positioning
                 val homeCenterDp = tokenContext.homeCenterCellUnits?.let { (cx, cy) ->
@@ -361,9 +366,9 @@ private fun OfflineLudoBoardWithInteraction(
                     isSelectable = isHumanPlayer && token.id in selectableTokenIds,
                     isSelected = isSelected,
                     isAnimating = isThisTokenAnimating,
-                    animationProgress = if (isThisTokenAnimating) 1f else 0f,
-                    fromPosition = if (isThisTokenAnimating) position else null,
-                    toPosition = targetPosition,
+                    animationProgress = segmentProgress,
+                    fromPosition = fromPos,
+                    toPosition = toPos,
                     cellSize = cellSizeDp,
                     boardPosition = position,
                     stackOffset = offset,
@@ -489,101 +494,3 @@ private fun OfflineBotPlayersRow(
     }
 }
 
-/**
- * Win dialog for offline game.
- */
-@Composable
-private fun OfflineWinDialog(
-    winnerName: String,
-    rankings: List<Pair<String, String>>? = null,
-    onDismiss: () -> Unit,
-    onPlayAgain: () -> Unit
-) {
-    val isHumanWinner = winnerName == "You"
-
-    var dialogVisible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { dialogVisible = true }
-    val dialogScale by animateFloatAsState(
-        targetValue = if (dialogVisible) 1f else 0.8f,
-        animationSpec = tween(300),
-        label = "dialogScale"
-    )
-    val dialogAlpha by animateFloatAsState(
-        targetValue = if (dialogVisible) 1f else 0f,
-        animationSpec = tween(300),
-        label = "dialogAlpha"
-    )
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Game Over!",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        scaleX = dialogScale
-                        scaleY = dialogScale
-                        alpha = dialogAlpha
-                    }
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer {
-                        scaleX = dialogScale
-                        scaleY = dialogScale
-                        alpha = dialogAlpha
-                    }
-            ) {
-                Text(
-                    text = if (isHumanWinner) "You Win!" else "Better Luck Next Time!",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = if (isHumanWinner) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isHumanWinner) LudoBoardColors.Green else MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (!isHumanWinner) {
-                    Text(
-                        text = "$winnerName wins!",
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                if (rankings != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(
-                        color = if (isHumanWinner) LudoBoardColors.Green else MaterialTheme.colorScheme.outlineVariant,
-                        thickness = 2.dp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    rankings.forEach { (rank, name) ->
-                        Text(
-                            text = "$rank  $name",
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onPlayAgain) {
-                Text("Play Again")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Exit")
-            }
-        }
-    )
-}

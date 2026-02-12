@@ -34,8 +34,8 @@ sealed class TokenPosition {
     fun toLegacyPosition(): Int = when (this) {
         is Home -> -1
         is OnRing -> ringIndex
-        is InLane -> 52 + laneIndex // Lane positions are 52-57
-        is Finished -> 58
+        is InLane -> 51 + laneIndex // Lane positions are 51-56
+        is Finished -> 56 // FINISH_POSITION
     }
 
     companion object {
@@ -49,8 +49,8 @@ sealed class TokenPosition {
                 TokenState.ACTIVE -> {
                     when {
                         position < 0 -> Home(homeSlot)
-                        position <= 51 -> OnRing(position)
-                        position <= 57 -> InLane(position - 52)
+                        position <= 50 -> OnRing(position)
+                        position <= 56 -> InLane(position - 51)
                         else -> Finished
                     }
                 }
@@ -65,13 +65,13 @@ sealed class TokenPosition {
  *
  * @property id Unique identifier for this token (0-3 within a player)
  * @property state Current state of the token (HOME, ACTIVE, FINISHED)
- * @property position Position on the board track (0-57 for main track, -1 for home)
+ * @property position Position on the board track (0-56 for main track, -1 for home)
  *                    Position is relative to the player's starting point.
  *                    - -1: Token is at HOME
  *                    - 0: Starting position (just left home on ring)
- *                    - 1-51: Ring positions (main track, 52 cells total)
- *                    - 52-57: Finish lane (colored path to center)
- *                    - 58: Finished (reached center)
+ *                    - 1-50: Ring positions (main track)
+ *                    - 51-55: Finish lane (colored path to center)
+ *                    - 56: Finished (reached center)
  */
 data class Token(
     val id: Int,
@@ -88,13 +88,13 @@ data class Token(
      * Check if token is on the main ring (positions 0-51).
      */
     val isOnRing: Boolean
-        get() = state == TokenState.ACTIVE && position in 0..51
+        get() = state == TokenState.ACTIVE && position in 0..RING_END
 
     /**
-     * Check if token is in the finish lane (positions 52-57).
+     * Check if token is in the finish lane (positions 51-56).
      */
     val isInLane: Boolean
-        get() = state == TokenState.ACTIVE && position in 52..57
+        get() = state == TokenState.ACTIVE && position in LANE_START..FINISH_POSITION
 
     /**
      * Get the ring index if on ring, null otherwise.
@@ -106,7 +106,7 @@ data class Token(
      * Get the lane index (0-5) if in lane, null otherwise.
      */
     val laneIndex: Int?
-        get() = if (isInLane) position - 52 else null
+        get() = if (isInLane) position - LANE_START else null
 
     /**
      * Check if this token can be moved with the given dice value.
@@ -138,9 +138,9 @@ data class Token(
     }
 
     companion object {
-        const val FINISH_POSITION = 57  // Last lane cell IS the finish
-        const val LANE_START = 52
-        const val RING_END = 51
+        const val FINISH_POSITION = 56  // Last lane cell IS the finish
+        const val LANE_START = 51
+        const val RING_END = 50
 
         // Legacy alias
         @Deprecated("Use LANE_START", ReplaceWith("LANE_START"))

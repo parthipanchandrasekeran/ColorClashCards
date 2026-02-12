@@ -4,6 +4,8 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -37,18 +39,27 @@ fun AppNavigation(
     modifier: Modifier = Modifier,
     themePreferences: ThemePreferences? = null
 ) {
-    val animDuration = 300
+    val animDuration = 350
     NavHost(
         navController = navController,
         startDestination = NavRoutes.Splash.route,
         modifier = modifier,
         enterTransition = {
-            slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(animDuration)) + fadeIn(tween(animDuration))
+            // Forward: scale-in from 0.92 + fade
+            scaleIn(
+                initialScale = 0.92f,
+                animationSpec = tween(animDuration)
+            ) + fadeIn(tween(animDuration))
         },
         exitTransition = {
-            slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, tween(animDuration)) + fadeOut(tween(animDuration))
+            // Exit: scale-out to 1.05 + fade
+            scaleOut(
+                targetScale = 1.05f,
+                animationSpec = tween(animDuration)
+            ) + fadeOut(tween(animDuration))
         },
         popEnterTransition = {
+            // Back: slide-right + fade
             slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, tween(animDuration)) + fadeIn(tween(animDuration))
         },
         popExitTransition = {

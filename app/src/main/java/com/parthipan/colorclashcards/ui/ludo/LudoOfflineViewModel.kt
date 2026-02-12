@@ -3,6 +3,7 @@ package com.parthipan.colorclashcards.ui.ludo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parthipan.colorclashcards.game.ludo.engine.LudoBotAgent
+import com.parthipan.colorclashcards.game.ludo.engine.LudoDebugLogger
 import com.parthipan.colorclashcards.game.ludo.engine.LudoEngine
 import com.parthipan.colorclashcards.game.ludo.engine.MoveResult
 import com.parthipan.colorclashcards.game.ludo.model.GameStatus
@@ -50,7 +51,8 @@ data class LudoOfflineUiState(
     val selectedTokenId: Int? = null,
     val previewPath: List<BoardPosition> = emptyList(),
     val isTokenAnimating: Boolean = false,
-    val animatingTokenId: Int? = null
+    val animatingTokenId: Int? = null,
+    val animationProgress: Float = 0f
 ) {
     companion object {
         const val TURN_TIMER_SECONDS = 30
@@ -78,9 +80,11 @@ class LudoOfflineViewModel(
      */
     fun initializeGame(botCount: Int, difficulty: String, colorName: String = "RED") {
         stopAllJobs()
+        LudoDebugLogger.clear()
 
         val humanColor = try { LudoColor.valueOf(colorName) } catch (_: Exception) { LudoColor.RED }
         val gameState = LudoGameState.createOfflineGame("You", botCount, humanColor)
+
         val humanPlayerId = gameState.players.first { !it.isBot }.id
         val now = timeProvider.currentTimeMillis()
 
@@ -379,8 +383,8 @@ class LudoOfflineViewModel(
         for (step in 1..diceValue) {
             val nextPos = currentPos + 1
 
-            // If reaching finish position (57), add color's triangle and stop
-            if (nextPos >= 57) {
+            // If reaching finish position, add color's triangle and stop
+            if (nextPos >= 56) {
                 positions.add(LudoBoardPositions.getFinishPosition(color))
                 break
             }
@@ -401,19 +405,31 @@ class LudoOfflineViewModel(
         val gameState = currentState.gameState ?: return
 
         // Stop timer during animation to prevent autoSkipTurn from
-        // corrupting state while the 650ms animation delay runs
+        // corrupting state while the animation delay runs
         stopTurnTimer()
 
         // Start animation
         _uiState.value = currentState.copy(
             isTokenAnimating = true,
             animatingTokenId = tokenId,
+            animationProgress = 0f,
             showTimer = false
         )
 
         viewModelScope.launch {
-            // Wait for animation to complete (600ms)
-            delay(650)
+            // Animate progress from 0 to 1 over 600ms (~60fps)
+            val animationDuration = 600L
+            val startTime = System.currentTimeMillis()
+            while (true) {
+                val elapsed = System.currentTimeMillis() - startTime
+                val progress = (elapsed.toFloat() / animationDuration).coerceAtMost(1f)
+                _uiState.value = _uiState.value.copy(animationProgress = progress)
+                if (progress >= 1f) break
+                delay(16)
+            }
+
+            // Small settle delay
+            delay(50)
 
             // Execute the actual move
             when (val result = LudoEngine.moveToken(gameState, tokenId)) {
@@ -425,6 +441,7 @@ class LudoOfflineViewModel(
                         message = result.message,
                         isTokenAnimating = false,
                         animatingTokenId = null,
+                        animationProgress = 0f,
                         selectedTokenId = null,
                         previewPath = emptyList()
                     )
@@ -507,11 +524,14 @@ class LudoOfflineViewModel(
             selectedTokenId = null,
             previewPath = emptyList(),
             isTokenAnimating = false,
-            animatingTokenId = null
+            animatingTokenId = null,
+            animationProgress = 0f
         )
 
         if (gameOver) {
             stopAllJobs()
+            LudoDebugLogger.dumpToLogcat()
+            LudoDebugLogger.uploadToFirestore("game_over")
             return
         }
 
@@ -640,6 +660,7 @@ class LudoOfflineViewModel(
                             winnerName = winner.name
                         )
                         stopAllJobs()
+                        LudoDebugLogger.dumpToLogcat()
                         return
                     }
 
@@ -665,6 +686,7 @@ class LudoOfflineViewModel(
                     // STEP 7: Check for game end
                     if (result.hasWon) {
                         stopAllJobs()
+                        LudoDebugLogger.dumpToLogcat()
                         return
                     }
 
@@ -750,8 +772,15 @@ class LudoOfflineViewModel(
         }
     }
 
+    /**
+     * Get the debug move log for bug reports.
+     */
+    fun getDebugLog(): String = LudoDebugLogger.getLog()
+
     override fun onCleared() {
         super.onCleared()
         stopAllJobs()
+        // TEMPORARY: Upload game log on exit for remote debugging
+        LudoDebugLogger.uploadToFirestore("game_exit")
     }
 }

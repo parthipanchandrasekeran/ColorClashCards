@@ -1,5 +1,6 @@
 package com.parthipan.colorclashcards.ui.settings
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -64,11 +66,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.parthipan.colorclashcards.BuildConfig
 import com.parthipan.colorclashcards.data.preferences.ThemePreferences
 import com.parthipan.colorclashcards.ui.theme.CardGreen
 import com.parthipan.colorclashcards.ui.theme.CardRed
@@ -86,7 +90,9 @@ fun SettingsScreen(
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
     val signOutComplete by viewModel.signOutComplete.collectAsState()
+    val updateStatus by viewModel.updateStatus.collectAsState()
     val coroutineScope = rememberCoroutineScope()
+    val activity = LocalContext.current as Activity
 
     var soundEnabled by remember { mutableStateOf(true) }
     var musicEnabled by remember { mutableStateOf(true) }
@@ -344,8 +350,26 @@ fun SettingsScreen(
             SettingsSection(title = "About", visible = section5Visible) {
                 SettingsItem(
                     title = "Version",
-                    value = "1.0.0",
+                    value = BuildConfig.VERSION_NAME,
                     icon = Icons.Filled.Info
+                )
+                SettingsClickableItem(
+                    title = "Check for Update",
+                    subtitle = when (updateStatus) {
+                        UpdateStatus.Checking -> "Checking..."
+                        UpdateStatus.Available -> "Update available, starting..."
+                        UpdateStatus.Downloading -> "Downloading update..."
+                        UpdateStatus.Downloaded -> "Installing update..."
+                        UpdateStatus.UpToDate -> "App is up to date!"
+                        UpdateStatus.Error -> "Error checking for updates"
+                        UpdateStatus.Idle -> null
+                    },
+                    onClick = {
+                        if (updateStatus != UpdateStatus.Checking) {
+                            viewModel.checkForUpdate(activity)
+                        }
+                    },
+                    icon = Icons.Filled.SystemUpdate
                 )
                 SettingsItem(
                     title = "Developer",
@@ -493,7 +517,8 @@ private fun SettingsItem(
 private fun SettingsClickableItem(
     title: String,
     onClick: () -> Unit,
-    icon: ImageVector? = null
+    icon: ImageVector? = null,
+    subtitle: String? = null
 ) {
     Row(
         modifier = Modifier
@@ -511,11 +536,19 @@ private fun SettingsClickableItem(
             )
             Spacer(modifier = Modifier.width(12.dp))
         }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = "Go to $title",

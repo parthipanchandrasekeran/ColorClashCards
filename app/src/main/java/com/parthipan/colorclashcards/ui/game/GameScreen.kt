@@ -97,6 +97,7 @@ import com.parthipan.colorclashcards.game.model.Player
 import com.parthipan.colorclashcards.game.model.PlayDirection
 import com.parthipan.colorclashcards.game.model.RoundEndReason
 import com.parthipan.colorclashcards.game.model.TurnPhase
+import com.parthipan.colorclashcards.ui.components.CelebrationOverlay
 import com.parthipan.colorclashcards.ui.components.ConfettiOverlay
 import com.parthipan.colorclashcards.ui.components.GameCardView
 import com.parthipan.colorclashcards.ui.theme.CardBlue
@@ -167,10 +168,9 @@ fun GameScreen(
                             fontWeight = FontWeight.Bold
                         )
                         uiState.gameState?.let { state ->
-                            Text(
-                                text = "Round ${state.currentRound} of ${GameState.TOTAL_ROUNDS}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                            RoundProgressDots(
+                                currentRound = state.currentRound,
+                                totalRounds = GameState.TOTAL_ROUNDS
                             )
                         }
                     }
@@ -293,22 +293,23 @@ fun GameScreen(
                 )
             }
 
-            // Win dialog (legacy - keeping for backwards compatibility)
+            // Win celebration overlay
             if (uiState.showWinDialog) {
-                WinDialog(
-                    winnerName = uiState.winnerName ?: "Unknown",
-                    isHumanWinner = uiState.winnerName == "You",
-                    onPlayAgain = {
+                val isHumanWinner = uiState.winnerName == "You"
+                CelebrationOverlay(
+                    isWinner = isHumanWinner,
+                    title = if (isHumanWinner) "You Won!" else "Game Over",
+                    subtitle = if (isHumanWinner) "Congratulations! You played all your cards!" else "${uiState.winnerName ?: "Unknown"} won the game!",
+                    winnerColor = CardGreen,
+                    primaryAction = "Play Again" to {
                         viewModel.dismissWinDialog()
                         viewModel.startOfflineGame(botCount, difficulty)
                     },
-                    onExit = {
+                    secondaryAction = "Exit" to {
                         viewModel.dismissWinDialog()
                         onBackClick()
                     }
                 )
-                // Confetti on human win
-                ConfettiOverlay(trigger = uiState.winnerName == "You")
             }
 
             // Round summary dialog
@@ -1069,13 +1070,25 @@ private fun CurrentTurnIndicator(
     isProcessing: Boolean,
     turnSecondsRemaining: Int? = null
 ) {
-    // Memoize computed values to avoid recalculation
+    // Timer color transitions: green -> yellow -> red
     val isLowTime = remember(turnSecondsRemaining) {
         turnSecondsRemaining != null && turnSecondsRemaining <= 5
     }
-    val glowColor = remember(isLowTime, isHumanTurn) {
+    val isMidTime = remember(turnSecondsRemaining) {
+        turnSecondsRemaining != null && turnSecondsRemaining in 6..10
+    }
+    val timerColor = remember(turnSecondsRemaining) {
+        when {
+            turnSecondsRemaining == null -> Color.White
+            turnSecondsRemaining <= 5 -> CardRed
+            turnSecondsRemaining <= 10 -> CardYellow
+            else -> CardGreen
+        }
+    }
+    val glowColor = remember(isLowTime, isMidTime, isHumanTurn) {
         when {
             isLowTime -> CardRed
+            isMidTime -> CardYellow
             isHumanTurn -> CardGreen
             else -> Color.Black
         }
@@ -1168,7 +1181,7 @@ private fun CurrentTurnIndicator(
                         text = "${turnSecondsRemaining}s",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = if (isLowTime) CardRed else Color.White
+                        color = timerColor
                     )
                 }
             }
@@ -1867,54 +1880,40 @@ private fun ColorPickerDialog(
     )
 }
 
+/**
+ * Round progress dots: filled for completed, pulsing for current, empty for future.
+ */
 @Composable
-private fun WinDialog(
-    winnerName: String,
-    isHumanWinner: Boolean,
-    onPlayAgain: () -> Unit,
-    onExit: () -> Unit
+private fun RoundProgressDots(
+    currentRound: Int,
+    totalRounds: Int
 ) {
-    AlertDialog(
-        onDismissRequest = {},
-        title = {
-            Text(
-                text = if (isHumanWinner) "You Won!" else "Game Over",
-                fontWeight = FontWeight.Bold,
-                fontSize = 24.sp,
-                textAlign = TextAlign.Center,
-                color = if (isHumanWinner) CardGreen else CardRed,
-                modifier = Modifier.fillMaxWidth()
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        for (round in 1..totalRounds) {
+            val isCurrent = round == currentRound
+            val isCompleted = round < currentRound
+            val dotColor = when {
+                isCompleted -> Color.White
+                isCurrent -> Color.White
+                else -> Color.White.copy(alpha = 0.3f)
+            }
+            val dotSize = if (isCurrent) 8.dp else 6.dp
+
+            Box(
+                modifier = Modifier
+                    .size(dotSize)
+                    .clip(CircleShape)
+                    .background(dotColor)
+                    .then(
+                        if (isCurrent) Modifier.border(1.dp, Color.White.copy(alpha = 0.6f), CircleShape)
+                        else Modifier
+                    )
             )
-        },
-        text = {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = if (isHumanWinner) {
-                        "Congratulations! You played all your cards!"
-                    } else {
-                        "$winnerName won the game!"
-                    },
-                    textAlign = TextAlign.Center
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onPlayAgain,
-                colors = ButtonDefaults.buttonColors(containerColor = CardGreen)
-            ) {
-                Text("Play Again")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onExit) {
-                Text("Exit")
-            }
         }
-    )
+    }
 }
 
 @Composable

@@ -74,6 +74,15 @@ object LudoEngine {
         }
         val movableTokens = getMovableTokens(currentPlayer, diceValue)
 
+        // Debug logging
+        LudoDebugLogger.logRoll(
+            color = currentPlayer.color,
+            playerName = currentPlayer.name,
+            diceValue = diceValue,
+            movableTokenIds = movableTokens.map { it.id },
+            consecutiveSixes = state.consecutiveSixes
+        )
+
         // Handle consecutive sixes
         var consecutiveSixes = state.consecutiveSixes
         var skipTurn = false
@@ -287,6 +296,23 @@ object LudoEngine {
             newState = advanceToNextPlayer(newState)
         }
 
+        // Debug logging
+        LudoDebugLogger.logMove(
+            color = currentPlayer.color,
+            tokenId = tokenId,
+            diceValue = diceValue,
+            fromPos = token.position,
+            toPos = moveDetails.newPosition,
+            fromState = token.state,
+            toState = moveDetails.newTokenState,
+            moveType = moveDetails.moveType.name,
+            captured = capturedInfo != null
+        )
+        LudoDebugLogger.logStateSnapshot(newState)
+
+        // Defensive position validation after every move
+        validateAllTokenPositions(newState)
+
         return MoveResult.Success(
             newState = newState,
             move = move,
@@ -303,8 +329,8 @@ object LudoEngine {
      * 1. HOME → RING: Only with dice=6, spawn at startIndexByColor[color] (relative position 0)
      * 2. RING movement: Move forward along ring, wrapping around
      * 3. RING → LANE: At laneEntryIndexByColor[color], enter finish lane instead of continuing
-     * 4. LANE movement: Move forward in lane (positions 52-57)
-     * 5. LANE → FINISH: Exact roll to position 58 required
+     * 4. LANE movement: Move forward in lane (positions 51-55)
+     * 5. LANE → FINISH: Exact roll to position 56 required
      */
     private fun calculateMove(token: Token, diceValue: Int, color: LudoColor): MoveDetails {
         val result = calculateMoveInternal(token, diceValue, color)
@@ -323,11 +349,11 @@ object LudoEngine {
     }
 
     private fun calculateMoveInternal(token: Token, diceValue: Int, color: LudoColor): MoveDetails {
-        // DEFENSIVE ASSERTION: Token in lane (52-57) must stay in lane or finish
+        // DEFENSIVE ASSERTION: Token in lane (51-56) must stay in lane or finish
         // Lane positions are color-specific and must NEVER wrap around or use ring indexing
         if (token.position in LudoBoard.LANE_START until LudoBoard.FINISH_POSITION) {
             val newPos = token.position + diceValue
-            // Lane can only advance forward (52→53→...→57→58) or stay (overshoot)
+            // Lane can only advance forward (51→52→...→55→56) or stay (overshoot)
             require(newPos >= token.position) {
                 "FATAL: Lane position cannot decrease! $color token at ${token.position} + $diceValue = $newPos"
             }
@@ -335,7 +361,7 @@ object LudoEngine {
             if (newPos != token.position && newPos < LudoBoard.LANE_START) {
                 val errorMsg = "FATAL: $color token at lane position ${token.position} " +
                     "would move to ring position $newPos! This is a bug - lane tokens must " +
-                    "stay in lane (52-57) or finish (58). Token may have entered wrong color's lane."
+                    "stay in lane (51-55) or finish (56). Token may have entered wrong color's lane."
                 log(errorMsg)
                 throw IllegalStateException(errorMsg)
             }
@@ -367,9 +393,9 @@ object LudoEngine {
                 }
 
                 when {
-                    // Check for exact finish (position 57 = last lane cell)
+                    // Check for exact finish (position 56 = last lane cell)
                     newPosition == LudoBoard.FINISH_POSITION -> {
-                        log("[FINISH] $color token at ${token.position} + $diceValue = 57 → FINISHED")
+                        log("[FINISH] $color token at ${token.position} + $diceValue = 56 → FINISHED")
                         MoveDetails(
                             newPosition = LudoBoard.FINISH_POSITION,
                             newTokenState = TokenState.FINISHED,
@@ -380,7 +406,7 @@ object LudoEngine {
                     }
                     // Overshoot finish - shouldn't happen if canTokenMove is correct
                     newPosition > LudoBoard.FINISH_POSITION -> {
-                        log("WARNING: $color token overshoot: ${token.position} + $diceValue = $newPosition > 57")
+                        log("WARNING: $color token overshoot: ${token.position} + $diceValue = $newPosition > 56")
                         MoveDetails(
                             newPosition = token.position,
                             newTokenState = TokenState.ACTIVE,
@@ -391,7 +417,7 @@ object LudoEngine {
                     }
                     // Already in lane or entering lane
                     newPosition > LudoBoard.RING_END -> {
-                        // Moving within or into finish lane (positions 52-57)
+                        // Moving within or into finish lane (positions 51-56)
                         // IMPORTANT: Lane positions are color-specific - no modulo/wrap-around allowed
                         val enteringLane = token.position <= LudoBoard.RING_END
                         if (enteringLane) {
@@ -480,6 +506,39 @@ object LudoEngine {
         }
 
         return null
+    }
+
+    /**
+     * Validate all token positions in the game state.
+     * Logs errors via LudoDebugLogger if any position is invalid.
+     */
+    private fun validateAllTokenPositions(state: LudoGameState) {
+        for (player in state.players) {
+            for (token in player.tokens) {
+                val valid = when (token.state) {
+                    TokenState.HOME -> token.position == LudoBoard.HOME_POSITION
+                    TokenState.ACTIVE -> token.position in 0..LudoBoard.FINISH_POSITION
+                    TokenState.FINISHED -> token.position == LudoBoard.FINISH_POSITION
+                }
+                if (!valid) {
+                    LudoDebugLogger.logValidationError(
+                        "${player.color} token#${token.id} state=${token.state} " +
+                        "position=${token.position} — INVALID"
+                    )
+                }
+
+                // ACTIVE tokens on ring must have valid absolute positions
+                if (token.state == TokenState.ACTIVE && token.position in 0..LudoBoard.RING_END) {
+                    val absPos = LudoBoard.toAbsolutePosition(token.position, player.color)
+                    if (absPos !in 0..51) {
+                        LudoDebugLogger.logValidationError(
+                            "${player.color} token#${token.id} at ring position " +
+                            "${token.position} has invalid absPos=$absPos"
+                        )
+                    }
+                }
+            }
+        }
     }
 
     /**

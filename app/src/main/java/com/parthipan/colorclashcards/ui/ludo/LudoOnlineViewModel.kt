@@ -8,6 +8,7 @@ import com.parthipan.colorclashcards.data.model.*
 import com.parthipan.colorclashcards.data.repository.LudoMatchRepository
 import com.parthipan.colorclashcards.data.repository.LudoRoomRepository
 import com.parthipan.colorclashcards.game.ludo.engine.LudoBotAgent
+import com.parthipan.colorclashcards.game.ludo.engine.LudoDebugLogger
 import com.parthipan.colorclashcards.game.ludo.engine.LudoEngine
 import com.parthipan.colorclashcards.game.ludo.engine.MoveResult
 import com.parthipan.colorclashcards.game.ludo.model.*
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
@@ -53,7 +55,8 @@ data class LudoOnlineUiState(
     val selectedTokenId: Int? = null,
     val previewPath: List<BoardPosition> = emptyList(),
     val isTokenAnimating: Boolean = false,
-    val animatingTokenId: Int? = null
+    val animatingTokenId: Int? = null,
+    val animationProgress: Float = 0f
 ) {
     companion object {
         const val TURN_TIMER_SECONDS = 30
@@ -81,6 +84,7 @@ class LudoOnlineViewModel : ViewModel() {
 
     private var roomId: String = ""
     private var localGameState: LudoGameState? = null
+    private var lastTurnStartedAt: Timestamp? = null
 
     private var observeJob: Job? = null
     private var hostJob: Job? = null
@@ -155,7 +159,14 @@ class LudoOnlineViewModel : ViewModel() {
             localGameState = gameState
 
             // Write to Firestore
-            matchRepository.initializeMatch(roomId, gameState)
+            val initResult = matchRepository.initializeMatch(roomId, gameState)
+            if (initResult.isFailure) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Failed to start match: ${initResult.exceptionOrNull()?.message}"
+                )
+                return@launch
+            }
 
             // Start observing and processing
             observeMatch()
@@ -170,9 +181,9 @@ class LudoOnlineViewModel : ViewModel() {
         observeJob?.cancel()
         observeJob = viewModelScope.launch {
             combine(
-                matchRepository.observeMatchState(roomId),
-                matchRepository.observePresence(roomId),
-                roomRepository.observeRoom(roomId)
+                matchRepository.observeMatchState(roomId).distinctUntilChanged(),
+                matchRepository.observePresence(roomId).distinctUntilChanged(),
+                roomRepository.observeRoom(roomId).distinctUntilChanged()
             ) { matchState, presenceList, room ->
                 Triple(matchState, presenceList, room)
             }.collect { (matchState, presenceList, room) ->
@@ -196,6 +207,7 @@ class LudoOnlineViewModel : ViewModel() {
 
         val gameState = matchState.toGameState()
         localGameState = gameState
+        lastTurnStartedAt = matchState.turnStartedAt
 
         val isMyTurn = gameState.currentTurnPlayerId == localPlayerId
         val currentPlayer = gameState.currentPlayer
@@ -290,7 +302,6 @@ class LudoOnlineViewModel : ViewModel() {
                     val newState = LudoEngine.rollDice(gameState, diceValue)
                     localGameState = newState
                     matchRepository.updateMatchState(roomId, newState)
-                    matchRepository.updateTurnStarted(roomId)
                 }
             }
 
@@ -304,8 +315,6 @@ class LudoOnlineViewModel : ViewModel() {
 
                             if (result.hasWon) {
                                 matchRepository.endMatch(roomId, result.newState.winnerId!!)
-                            } else if (!result.bonusTurn) {
-                                matchRepository.updateTurnStarted(roomId)
                             }
                         }
                         is MoveResult.Error -> {
@@ -332,10 +341,11 @@ class LudoOnlineViewModel : ViewModel() {
         val gameState = localGameState ?: return
         if (gameState.isGameOver) return
 
-        val matchState = matchRepository.getMatchState(roomId).getOrNull() ?: return
+        // Use cached timestamp instead of reading Firestore
+        val turnStartedAt = lastTurnStartedAt ?: return
 
         // Check AFK timeout
-        if (matchRepository.isPlayerAfk(matchState.turnStartedAt)) {
+        if (matchRepository.isPlayerAfk(turnStartedAt)) {
             val currentPlayer = gameState.currentPlayer
 
             // Skip turn for AFK player
@@ -343,7 +353,6 @@ class LudoOnlineViewModel : ViewModel() {
                 val newState = LudoEngine.advanceToNextPlayer(gameState)
                 localGameState = newState
                 matchRepository.updateMatchState(roomId, newState)
-                matchRepository.updateTurnStarted(roomId)
 
                 _uiState.value = _uiState.value.copy(
                     message = "${currentPlayer.name}'s turn was skipped (AFK)"
@@ -378,7 +387,6 @@ class LudoOnlineViewModel : ViewModel() {
         heartbeatJob = viewModelScope.launch {
             while (true) {
                 matchRepository.updatePresence(roomId)
-                roomRepository.updateActivity(roomId)
                 delay(10_000) // Every 10 seconds
             }
         }
@@ -483,7 +491,6 @@ class LudoOnlineViewModel : ViewModel() {
 
                 // Then persist to Firestore
                 matchRepository.updateMatchState(roomId, newState)
-                matchRepository.updateTurnStarted(roomId)
             } else {
                 // Send action to host
                 matchRepository.sendAction(roomId, LudoActionType.ROLL_DICE)
@@ -550,7 +557,12 @@ class LudoOnlineViewModel : ViewModel() {
         var currentPos = token.position
         for (step in 1..diceValue) {
             val nextPos = currentPos + 1
-            if (nextPos > 56) break
+
+            // If reaching finish position, add color's finish triangle and stop
+            if (nextPos >= 56) {
+                positions.add(LudoBoardPositions.getFinishPosition(color))
+                break
+            }
 
             val boardPos = LudoBoardPositions.getGridPosition(nextPos, color)
             boardPos?.let { positions.add(it) }
@@ -569,12 +581,24 @@ class LudoOnlineViewModel : ViewModel() {
         // Start animation
         _uiState.value = state.copy(
             isTokenAnimating = true,
-            animatingTokenId = tokenId
+            animatingTokenId = tokenId,
+            animationProgress = 0f
         )
 
         viewModelScope.launch {
-            // Wait for animation to complete (600ms)
-            delay(650)
+            // Animate progress from 0 to 1 over 600ms (~60fps)
+            val animationDuration = 600L
+            val startTime = System.currentTimeMillis()
+            while (true) {
+                val elapsed = System.currentTimeMillis() - startTime
+                val progress = (elapsed.toFloat() / animationDuration).coerceAtMost(1f)
+                _uiState.value = _uiState.value.copy(animationProgress = progress)
+                if (progress >= 1f) break
+                delay(16)
+            }
+
+            // Small settle delay
+            delay(50)
 
             if (state.isHost) {
                 val gameState = localGameState ?: return@launch
@@ -585,6 +609,7 @@ class LudoOnlineViewModel : ViewModel() {
                         _uiState.value = _uiState.value.copy(
                             isTokenAnimating = false,
                             animatingTokenId = null,
+                            animationProgress = 0f,
                             selectedTokenId = null,
                             previewPath = emptyList()
                         )
@@ -593,8 +618,6 @@ class LudoOnlineViewModel : ViewModel() {
 
                         if (result.hasWon) {
                             matchRepository.endMatch(roomId, result.newState.winnerId!!)
-                        } else if (!result.bonusTurn) {
-                            matchRepository.updateTurnStarted(roomId)
                         }
                     }
                     is MoveResult.Error -> {
@@ -602,6 +625,7 @@ class LudoOnlineViewModel : ViewModel() {
                             error = result.message,
                             isTokenAnimating = false,
                             animatingTokenId = null,
+                            animationProgress = 0f,
                             selectedTokenId = null,
                             previewPath = emptyList()
                         )
@@ -611,6 +635,7 @@ class LudoOnlineViewModel : ViewModel() {
                 _uiState.value = _uiState.value.copy(
                     isTokenAnimating = false,
                     animatingTokenId = null,
+                    animationProgress = 0f,
                     selectedTokenId = null,
                     previewPath = emptyList()
                 )
@@ -668,6 +693,8 @@ class LudoOnlineViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         cleanup()
+        // TEMPORARY: Upload game log on exit for remote debugging
+        LudoDebugLogger.uploadToFirestore("game_exit")
         // Mark as disconnected on cleanup
         viewModelScope.launch {
             matchRepository.markDisconnected(roomId)

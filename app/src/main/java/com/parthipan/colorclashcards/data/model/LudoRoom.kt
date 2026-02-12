@@ -2,6 +2,7 @@ package com.parthipan.colorclashcards.data.model
 
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ServerTimestamp
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 
@@ -56,7 +57,7 @@ data class LudoRoom(
         "maxPlayers" to maxPlayers,
         "isPublic" to isPublic,
         "players" to players.map { it.toMap() },
-        "createdAt" to createdAt
+        "createdAt" to (createdAt ?: FieldValue.serverTimestamp())
     )
 }
 

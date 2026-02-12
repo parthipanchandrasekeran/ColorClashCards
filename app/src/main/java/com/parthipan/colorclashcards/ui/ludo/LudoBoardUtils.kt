@@ -1,5 +1,11 @@
 package com.parthipan.colorclashcards.ui.ludo
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -13,20 +19,26 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.parthipan.colorclashcards.ui.components.pulsingBorder
+import com.parthipan.colorclashcards.ui.theme.Gold
+import android.util.Log
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import com.parthipan.colorclashcards.game.ludo.model.LudoPlayer
 import com.parthipan.colorclashcards.game.ludo.model.Token
@@ -82,7 +94,7 @@ fun calculateStackOffsets(count: Int, cellSize: Dp): Pair<List<Pair<Dp, Dp>>, Fl
  * Get the board position for a token based on its state and color.
  */
 fun getTokenBoardPosition(token: Token, color: LudoColor): BoardPosition? {
-    return when (token.state) {
+    val pos = when (token.state) {
         TokenState.HOME -> {
             LudoBoardPositions.getHomeBasePositions(color).getOrNull(token.id)
         }
@@ -93,6 +105,11 @@ fun getTokenBoardPosition(token: Token, color: LudoColor): BoardPosition? {
             LudoBoardPositions.getFinishPosition(color)
         }
     }
+    if (pos == null && token.state == TokenState.ACTIVE) {
+        Log.w("LudoDebug", "RENDER WARNING: $color token#${token.id} ACTIVE at " +
+            "position=${token.position} has NO grid position — rendering will skip this token")
+    }
+    return pos
 }
 
 /**
@@ -107,6 +124,7 @@ fun SharedPlayerChip(
     displayName: String,
     isCurrentTurn: Boolean,
     isDisconnected: Boolean = false,
+    isLeading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val playerColor = LudoBoardColors.getColor(player.color)
@@ -114,12 +132,25 @@ fun SharedPlayerChip(
     val activeCount = player.tokens.count { it.state == TokenState.ACTIVE }
     val finishedCount = player.tokens.count { it.state == TokenState.FINISHED }
 
+    // Subtle scale pulse for current player
+    val pulseTransition = rememberInfiniteTransition(label = "chip_pulse")
+    val pulseScale by pulseTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (isCurrentTurn) 1.03f else 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "chip_scale"
+    )
+
     Card(
         modifier = modifier
-            .then(
-                if (isCurrentTurn) {
-                    Modifier.border(2.dp, playerColor, RoundedCornerShape(12.dp))
-                } else Modifier
+            .scale(pulseScale)
+            .pulsingBorder(
+                color = playerColor,
+                enabled = isCurrentTurn,
+                cornerRadius = 12.dp
             ),
         colors = CardDefaults.cardColors(
             containerColor = when {
@@ -161,6 +192,16 @@ fun SharedPlayerChip(
                 color = if (isDisconnected) Color.Gray else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
+
+            // Leading player star
+            if (isLeading && finishedCount > 0) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = "Leading",
+                    modifier = Modifier.size(12.dp),
+                    tint = Gold
+                )
+            }
 
             // Disconnected icon
             if (isDisconnected) {

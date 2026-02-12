@@ -22,8 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,7 +32,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -52,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.parthipan.colorclashcards.ui.components.CelebrationOverlay
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import com.parthipan.colorclashcards.game.ludo.model.LudoGameState
 import com.parthipan.colorclashcards.game.ludo.model.LudoPlayer
@@ -188,15 +186,20 @@ fun LudoGameScreen(
         }
     }
 
-    // Win dialog
+    // Win celebration overlay
     if (uiState.showWinDialog) {
-        WinDialog(
-            winnerName = uiState.winnerName ?: "Unknown",
-            onDismiss = { viewModel.dismissWinDialog() },
-            onPlayAgain = {
+        val winnerName = uiState.winnerName ?: "Unknown"
+        val isWinner = winnerName == "You"
+
+        CelebrationOverlay(
+            isWinner = isWinner,
+            title = if (isWinner) "You Win!" else "Game Over",
+            subtitle = if (isWinner) "Congratulations!" else "$winnerName wins!",
+            winnerColor = LudoBoardColors.Green,
+            primaryAction = "Play Again" to {
                 viewModel.dismissWinDialog()
-                // TODO: Implement play again
-            }
+            },
+            secondaryAction = "Exit" to { viewModel.dismissWinDialog() }
         )
     }
 }
@@ -379,46 +382,6 @@ private fun CompactDiceControls(
     }
 }
 
-/**
- * Win dialog shown when a player wins.
- */
-@Composable
-fun WinDialog(
-    winnerName: String,
-    onDismiss: () -> Unit,
-    onPlayAgain: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Game Over!",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        text = {
-            Text(
-                text = if (winnerName == "You") "You win!" else "$winnerName wins!",
-                style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            Button(onClick = onPlayAgain) {
-                Text("Play Again")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Exit")
-            }
-        }
-    )
-}
 
 /**
  * Preview/Demo version of the game board for the home screen.

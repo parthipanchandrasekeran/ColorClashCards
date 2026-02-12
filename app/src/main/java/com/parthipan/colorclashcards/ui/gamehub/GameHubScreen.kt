@@ -56,6 +56,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import com.parthipan.colorclashcards.ui.components.floatingShapes
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
@@ -149,22 +150,6 @@ fun GameHubScreen(
             animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow), label = "card2Offset"
         )
 
-        // G3: Floating background card shapes — slow drift
-        val bgShapeTransition = rememberInfiniteTransition(label = "bg_shapes")
-        val bgDrift by bgShapeTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 6000, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "bg_drift"
-        )
-        val bgShapeColor1 = CardRed.copy(alpha = 0.04f)
-        val bgShapeColor2 = CardBlue.copy(alpha = 0.04f)
-        val bgShapeColor3 = CardGreen.copy(alpha = 0.04f)
-        val bgShapeColor4 = CardYellow.copy(alpha = 0.04f)
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -176,42 +161,10 @@ fun GameHubScreen(
                         )
                     )
                 )
-                .drawBehind {
-                    val driftOffset = bgDrift * 20f
-                    // 4 faint card-shaped rectangles at scattered positions
-                    rotate(degrees = 15f + driftOffset * 0.3f, pivot = Offset(size.width * 0.1f, size.height * 0.15f)) {
-                        drawRoundRect(
-                            color = bgShapeColor1,
-                            topLeft = Offset(size.width * 0.05f, size.height * 0.08f + driftOffset),
-                            size = Size(60f, 90f),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f)
-                        )
-                    }
-                    rotate(degrees = -10f - driftOffset * 0.2f, pivot = Offset(size.width * 0.85f, size.height * 0.25f)) {
-                        drawRoundRect(
-                            color = bgShapeColor2,
-                            topLeft = Offset(size.width * 0.8f, size.height * 0.2f - driftOffset * 0.5f),
-                            size = Size(50f, 75f),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f)
-                        )
-                    }
-                    rotate(degrees = 25f - driftOffset * 0.4f, pivot = Offset(size.width * 0.7f, size.height * 0.7f)) {
-                        drawRoundRect(
-                            color = bgShapeColor3,
-                            topLeft = Offset(size.width * 0.65f, size.height * 0.65f + driftOffset * 0.7f),
-                            size = Size(55f, 80f),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(7f, 7f)
-                        )
-                    }
-                    rotate(degrees = -20f + driftOffset * 0.5f, pivot = Offset(size.width * 0.2f, size.height * 0.75f)) {
-                        drawRoundRect(
-                            color = bgShapeColor4,
-                            topLeft = Offset(size.width * 0.15f, size.height * 0.7f - driftOffset * 0.3f),
-                            size = Size(45f, 65f),
-                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f)
-                        )
-                    }
-                }
+                .floatingShapes(
+                    colors = listOf(CardRed, CardBlue, CardGreen, CardYellow),
+                    shapeType = "rect"
+                )
                 .padding(paddingValues)
                 .padding(16.dp)
                 .testTag("gameHubScreen"),

@@ -4,7 +4,8 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
+
+import android.util.Log
 import com.parthipan.colorclashcards.data.model.*
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import kotlinx.coroutines.channels.awaitClose
@@ -73,6 +74,8 @@ class LudoRoomRepository {
 
     /**
      * Join a room by room code.
+     * Uses single-field query on "roomCode" to avoid requiring a composite index,
+     * then checks status client-side.
      */
     suspend fun joinRoomByCode(roomCode: String): Result<LudoRoom> {
         if (roomCode.isBlank() || roomCode.length != 6) {
@@ -81,16 +84,22 @@ class LudoRoomRepository {
         val userId = currentUserId ?: return Result.failure(Exception("Not signed in"))
 
         return try {
-            // Query stays outside transaction (Firestore limitation)
+            // Query only by roomCode (single field = automatic index)
             val querySnapshot = roomsCollection
                 .whereEqualTo("roomCode", roomCode.uppercase())
-                .whereEqualTo("status", LudoRoomStatus.WAITING.name)
                 .limit(1)
                 .get()
                 .await()
 
             if (querySnapshot.isEmpty) {
-                return Result.failure(Exception("Room not found or game already started"))
+                return Result.failure(Exception("Room not found"))
+            }
+
+            // Check status client-side
+            val roomDoc = querySnapshot.documents.first()
+            val roomData = LudoRoom.fromMap(roomDoc.id, roomDoc.data ?: emptyMap())
+            if (roomData.status != LudoRoomStatus.WAITING.name) {
+                return Result.failure(Exception("Game already started"))
             }
 
             val docRef = roomsCollection.document(querySnapshot.documents.first().id)
@@ -376,15 +385,20 @@ class LudoRoomRepository {
 
     /**
      * Observe public rooms for lobby.
+     * Uses single-field query on "status" to avoid requiring a composite index,
+     * then filters isPublic client-side.
      */
     fun observePublicRooms(): Flow<List<LudoRoom>> = callbackFlow {
         val listener = roomsCollection
-            .whereEqualTo("isPublic", true)
             .whereEqualTo("status", LudoRoomStatus.WAITING.name)
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .limit(20)
+            .limit(50)
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) {
+                if (error != null) {
+                    Log.e("LudoRoomRepository", "observePublicRooms error", error)
+                    trySend(emptyList())
+                    return@addSnapshotListener
+                }
+                if (snapshot == null) {
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
@@ -395,7 +409,7 @@ class LudoRoomRepository {
                     } catch (e: Exception) {
                         null
                     }
-                }
+                }.filter { it.isPublic }
                 trySend(rooms)
             }
         awaitClose { listener.remove() }

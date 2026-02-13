@@ -56,7 +56,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.parthipan.colorclashcards.audio.LocalSoundManager
+import com.parthipan.colorclashcards.audio.SoundEffect
 import com.parthipan.colorclashcards.ui.components.CelebrationOverlay
 import com.parthipan.colorclashcards.ui.components.LudoLoadingSkeleton
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
@@ -78,10 +81,33 @@ fun LudoOfflineGameScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val clipboardManager = LocalClipboardManager.current
+    val soundManager = LocalSoundManager.current
 
     // Initialize game on first composition
     LaunchedEffect(Unit) {
         viewModel.initializeGame(botCount, difficulty, color)
+    }
+
+    // Token move sounds
+    LaunchedEffect(uiState.animatingTokenId) {
+        if (uiState.animatingTokenId != null) {
+            soundManager.play(SoundEffect.TOKEN_MOVE)
+        }
+    }
+
+    // Win sounds
+    LaunchedEffect(uiState.showWinDialog) {
+        if (uiState.showWinDialog) {
+            val isWinner = uiState.winnerName == "You"
+            if (isWinner) soundManager.play(SoundEffect.WIN_FANFARE)
+            else soundManager.play(SoundEffect.LOSE_SOUND)
+        }
+    }
+
+    // Background music
+    DisposableEffect(Unit) {
+        soundManager.startMusic()
+        onDispose { soundManager.stopMusic() }
     }
 
     val gameState = uiState.gameState

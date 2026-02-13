@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.view.HapticFeedbackConstants
+import com.parthipan.colorclashcards.audio.LocalSoundManager
+import com.parthipan.colorclashcards.audio.SoundEffect
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
@@ -113,8 +115,9 @@ fun LudoDiceView(
         label = "pulse"
     )
 
-    // Haptic feedback
+    // Sound & haptic feedback
     val view = LocalView.current
+    val soundManager = LocalSoundManager.current
 
     // Particle burst state
     var showParticleBurst by remember { mutableStateOf(false) }
@@ -130,7 +133,7 @@ fun LudoDiceView(
         } else if (value != null) {
             displayValue = value
             // Enhanced haptic on dice landing
-            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            soundManager.performHapticIfEnabled(view, HapticFeedbackConstants.VIRTUAL_KEY)
             // Trigger particle burst
             showParticleBurst = true
             burstProgress.snapTo(0f)
@@ -239,7 +242,8 @@ fun LudoDiceView(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                        soundManager.performHapticIfEnabled(view, HapticFeedbackConstants.VIRTUAL_KEY)
+                        soundManager.play(SoundEffect.DICE_ROLL)
                         onRoll()
                     }
                 )

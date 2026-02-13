@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.parthipan.colorclashcards.data.model.LudoRoom
 import com.parthipan.colorclashcards.data.model.LudoRoomStatus
 import com.parthipan.colorclashcards.data.repository.LudoRoomRepository
+import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +33,8 @@ data class LudoRoomLobbyUiState(
     val isReady: Boolean = false,
     val canStart: Boolean = false,
     val error: String? = null,
-    val gameStarted: Boolean = false
+    val gameStarted: Boolean = false,
+    val colorChangeInProgress: Boolean = false
 )
 
 /**
@@ -227,6 +229,25 @@ class LudoRoomLobbyViewModel : ViewModel() {
                     error = e.message ?: "Failed to update ready status"
                 )
             }
+        }
+    }
+
+    /**
+     * Change the local player's color.
+     */
+    fun changeColor(color: LudoColor) {
+        if (_uiState.value.colorChangeInProgress) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(colorChangeInProgress = true)
+
+            repository.changePlayerColor(roomId, color).onFailure { e ->
+                _uiState.value = _uiState.value.copy(
+                    error = e.message ?: "Failed to change color"
+                )
+            }
+
+            _uiState.value = _uiState.value.copy(colorChangeInProgress = false)
         }
     }
 

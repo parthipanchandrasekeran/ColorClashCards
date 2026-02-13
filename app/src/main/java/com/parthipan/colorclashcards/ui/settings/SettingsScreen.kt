@@ -73,6 +73,7 @@ import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.parthipan.colorclashcards.BuildConfig
+import com.parthipan.colorclashcards.data.preferences.AudioPreferences
 import com.parthipan.colorclashcards.data.preferences.ThemePreferences
 import com.parthipan.colorclashcards.ui.theme.CardGreen
 import com.parthipan.colorclashcards.ui.theme.CardRed
@@ -86,6 +87,7 @@ fun SettingsScreen(
     onSignIn: () -> Unit = {},
     onNavigateToPrivacy: () -> Unit = {},
     themePreferences: ThemePreferences? = null,
+    audioPreferences: AudioPreferences? = null,
     viewModel: SettingsViewModel = viewModel()
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
@@ -94,9 +96,12 @@ fun SettingsScreen(
     val coroutineScope = rememberCoroutineScope()
     val activity = LocalContext.current as Activity
 
-    var soundEnabled by remember { mutableStateOf(true) }
-    var musicEnabled by remember { mutableStateOf(true) }
-    var vibrationEnabled by remember { mutableStateOf(true) }
+    val soundEnabled by audioPreferences?.isSoundEnabled?.collectAsState(initial = true)
+        ?: remember { mutableStateOf(true) }
+    val musicEnabled by audioPreferences?.isMusicEnabled?.collectAsState(initial = true)
+        ?: remember { mutableStateOf(true) }
+    val vibrationEnabled by audioPreferences?.isVibrationEnabled?.collectAsState(initial = true)
+        ?: remember { mutableStateOf(true) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     val darkMode by themePreferences?.isDarkMode?.collectAsState(initial = false)
         ?: remember { mutableStateOf(false) }
@@ -295,21 +300,27 @@ fun SettingsScreen(
                     title = "Sound Effects",
                     subtitle = "Play sounds during gameplay",
                     checked = soundEnabled,
-                    onCheckedChange = { soundEnabled = it },
+                    onCheckedChange = { enabled ->
+                        coroutineScope.launch { audioPreferences?.setSoundEnabled(enabled) }
+                    },
                     icon = Icons.AutoMirrored.Filled.VolumeUp
                 )
                 SettingsToggle(
                     title = "Background Music",
                     subtitle = "Play music while in the app",
                     checked = musicEnabled,
-                    onCheckedChange = { musicEnabled = it },
+                    onCheckedChange = { enabled ->
+                        coroutineScope.launch { audioPreferences?.setMusicEnabled(enabled) }
+                    },
                     icon = Icons.Filled.MusicNote
                 )
                 SettingsToggle(
                     title = "Vibration",
                     subtitle = "Haptic feedback on actions",
                     checked = vibrationEnabled,
-                    onCheckedChange = { vibrationEnabled = it },
+                    onCheckedChange = { enabled ->
+                        coroutineScope.launch { audioPreferences?.setVibrationEnabled(enabled) }
+                    },
                     icon = Icons.Filled.Vibration
                 )
             }

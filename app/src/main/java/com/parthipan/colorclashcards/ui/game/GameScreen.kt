@@ -97,6 +97,9 @@ import com.parthipan.colorclashcards.game.model.Player
 import com.parthipan.colorclashcards.game.model.PlayDirection
 import com.parthipan.colorclashcards.game.model.RoundEndReason
 import com.parthipan.colorclashcards.game.model.TurnPhase
+import androidx.compose.runtime.DisposableEffect
+import com.parthipan.colorclashcards.audio.LocalSoundManager
+import com.parthipan.colorclashcards.audio.SoundEffect
 import com.parthipan.colorclashcards.ui.components.CelebrationOverlay
 import com.parthipan.colorclashcards.ui.components.ConfettiOverlay
 import com.parthipan.colorclashcards.ui.components.GameCardView
@@ -116,12 +119,40 @@ fun GameScreen(
     viewModel: GameViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val soundManager = LocalSoundManager.current
 
     // Start game when screen loads
     LaunchedEffect(Unit) {
         if (mode == "offline") {
             viewModel.startOfflineGame(botCount, difficulty)
         }
+    }
+
+    // Card play sounds — observe discard pile size changes
+    val discardPileSize = uiState.gameState?.discardPile?.size ?: 0
+    LaunchedEffect(discardPileSize) {
+        if (discardPileSize <= 1) return@LaunchedEffect
+        val topCard = uiState.gameState?.topCard ?: return@LaunchedEffect
+        when (topCard.type) {
+            CardType.SKIP, CardType.REVERSE, CardType.DRAW_TWO, CardType.WILD_DRAW_FOUR ->
+                soundManager.play(SoundEffect.CARD_SKIP)
+            else -> soundManager.play(SoundEffect.CARD_PLAY)
+        }
+    }
+
+    // Win sounds
+    LaunchedEffect(uiState.showWinDialog) {
+        if (uiState.showWinDialog) {
+            val isWinner = uiState.winnerName == "You"
+            if (isWinner) soundManager.play(SoundEffect.WIN_FANFARE)
+            else soundManager.play(SoundEffect.LOSE_SOUND)
+        }
+    }
+
+    // Background music
+    DisposableEffect(Unit) {
+        soundManager.startMusic(com.parthipan.colorclashcards.R.raw.game_bg_music)
+        onDispose { soundManager.stopMusic() }
     }
 
     // Get humanPlayerId from ViewModel (stable after game starts)

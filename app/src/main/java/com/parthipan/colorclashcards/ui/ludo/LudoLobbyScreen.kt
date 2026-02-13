@@ -1,5 +1,8 @@
 package com.parthipan.colorclashcards.ui.ludo
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -58,7 +62,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
@@ -538,12 +544,24 @@ fun LudoRoomLobbyScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
+                val currentUserId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+                val usedColors = room.players.map { it.color }.toSet()
+
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     room.players.forEach { player ->
-                        LobbyPlayerCard(player = player)
+                        val isLocalPlayer = player.odId == currentUserId
+                        LobbyPlayerCard(
+                            player = player,
+                            isLocalPlayer = isLocalPlayer,
+                            usedColors = usedColors,
+                            colorChangeInProgress = uiState.colorChangeInProgress,
+                            onColorSelected = if (isLocalPlayer) {
+                                { color -> viewModel.changeColor(color) }
+                            } else null
+                        )
                     }
 
                     // Empty slots
@@ -605,7 +623,13 @@ fun LudoRoomLobbyScreen(
  * Player card in lobby.
  */
 @Composable
-private fun LobbyPlayerCard(player: LudoRoomPlayer) {
+private fun LobbyPlayerCard(
+    player: LudoRoomPlayer,
+    isLocalPlayer: Boolean = false,
+    usedColors: Set<String> = emptySet(),
+    colorChangeInProgress: Boolean = false,
+    onColorSelected: ((LudoColor) -> Unit)? = null
+) {
     val playerColor = try {
         LudoBoardColors.getColor(LudoColor.valueOf(player.color))
     } catch (e: Exception) {
@@ -618,61 +642,161 @@ private fun LobbyPlayerCard(player: LudoRoomPlayer) {
             containerColor = playerColor.copy(alpha = 0.1f)
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Color indicator
-            Box(
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(playerColor)
-            )
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Color indicator
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(playerColor)
+                )
 
-            Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = player.odisplayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (player.isHost) {
-                        Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "HOST",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
+                            text = player.odisplayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (player.isHost) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "HOST",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Text(
+                        text = player.color,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = playerColor
+                    )
+                }
+
+                // Ready indicator
+                if (player.isReady) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(LudoBoardColors.FinishedBadge),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
-                Text(
-                    text = player.color,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = playerColor
-                )
             }
 
-            // Ready indicator
-            if (player.isReady) {
+            // Color picker for local player
+            if (isLocalPlayer && onColorSelected != null) {
+                LobbyColorPicker(
+                    selectedColor = player.color,
+                    usedColors = usedColors,
+                    enabled = !colorChangeInProgress,
+                    onColorSelected = onColorSelected,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Color picker row for lobby — shows 4 color circles.
+ */
+@Composable
+private fun LobbyColorPicker(
+    selectedColor: String,
+    usedColors: Set<String>,
+    enabled: Boolean,
+    onColorSelected: (LudoColor) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        LudoColor.entries.forEach { color ->
+            val isSelected = color.name == selectedColor
+            val isTakenByOther = color.name in usedColors && !isSelected
+            val displayColor = LudoBoardColors.getColor(color)
+
+            val targetSize = if (isSelected) 36f else 28f
+            val animatedSize by animateFloatAsState(
+                targetValue = targetSize,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessLow
+                ),
+                label = "colorSize"
+            )
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(animatedSize.dp)
+                        .then(
+                            if (isSelected) Modifier.shadow(4.dp, CircleShape)
+                            else Modifier
+                        )
+                        .then(
+                            if (isSelected) Modifier.border(2.dp, Color.White, CircleShape)
+                            else Modifier
+                        )
                         .clip(CircleShape)
-                        .background(LudoBoardColors.FinishedBadge),
+                        .background(displayColor.copy(alpha = if (isTakenByOther) 0.25f else 1f))
+                        .then(
+                            if (!isTakenByOther && !isSelected && enabled) {
+                                Modifier.clickable { onColorSelected(color) }
+                            } else Modifier
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Default.Check,
-                        null,
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    when {
+                        isSelected -> Icon(
+                            Icons.Default.Check,
+                            contentDescription = "${color.name} selected",
+                            tint = Color.White,
+                            modifier = Modifier.size((animatedSize * 0.55f).dp)
+                        )
+                        isTakenByOther -> Icon(
+                            Icons.Default.Close,
+                            contentDescription = "${color.name} taken",
+                            tint = Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size((animatedSize * 0.55f).dp)
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = color.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isTakenByOther) {
+                        displayColor.copy(alpha = 0.4f)
+                    } else {
+                        displayColor
+                    },
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                )
             }
         }
     }

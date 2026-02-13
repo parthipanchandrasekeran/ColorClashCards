@@ -13,6 +13,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.parthipan.colorclashcards.data.preferences.AudioPreferences
 import com.parthipan.colorclashcards.data.preferences.ThemePreferences
 import com.parthipan.colorclashcards.ui.auth.AuthScreen
 import com.parthipan.colorclashcards.ui.game.GameScreen
@@ -37,7 +38,8 @@ import com.google.firebase.auth.FirebaseAuth
 fun AppNavigation(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    themePreferences: ThemePreferences? = null
+    themePreferences: ThemePreferences? = null,
+    audioPreferences: AudioPreferences? = null
 ) {
     val animDuration = 350
     NavHost(
@@ -364,7 +366,8 @@ fun AppNavigation(
                 onNavigateToPrivacy = {
                     navController.navigate(NavRoutes.Privacy.route)
                 },
-                themePreferences = themePreferences
+                themePreferences = themePreferences,
+                audioPreferences = audioPreferences
             )
         }
 

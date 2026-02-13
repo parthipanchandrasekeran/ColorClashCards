@@ -41,6 +41,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.view.HapticFeedbackConstants
+import com.parthipan.colorclashcards.audio.LocalSoundManager
+import com.parthipan.colorclashcards.audio.SoundEffect
 import com.parthipan.colorclashcards.ui.theme.Gold
 import com.parthipan.colorclashcards.ui.theme.GoldLight
 import kotlinx.coroutines.delay
@@ -67,10 +69,12 @@ fun CelebrationOverlay(
     secondaryAction: Pair<String, () -> Unit>? = null,
     tertiaryAction: Pair<String, () -> Unit>? = null
 ) {
-    // Haptic feedback
+    // Sound & haptic feedback
     val view = LocalView.current
+    val soundManager = LocalSoundManager.current
     LaunchedEffect(Unit) {
-        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        soundManager.performHapticIfEnabled(view, HapticFeedbackConstants.LONG_PRESS)
+        if (isWinner) soundManager.play(SoundEffect.CELEBRATION)
     }
 
     // Entry animations

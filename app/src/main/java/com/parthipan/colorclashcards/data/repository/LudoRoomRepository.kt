@@ -306,6 +306,48 @@ class LudoRoomRepository {
     }
 
     /**
+     * Change a player's color in a waiting room.
+     * Uses a transaction to prevent two players from picking the same color.
+     */
+    suspend fun changePlayerColor(roomId: String, newColor: LudoColor): Result<Unit> {
+        val userId = currentUserId ?: return Result.failure(Exception("Not signed in"))
+
+        return try {
+            val docRef = roomsCollection.document(roomId)
+
+            firestore.runTransaction { transaction ->
+                val snapshot = transaction.get(docRef)
+                val room = LudoRoom.fromMap(snapshot.id, snapshot.data ?: emptyMap())
+
+                if (room.status != LudoRoomStatus.WAITING.name) {
+                    throw Exception("Cannot change color after game started")
+                }
+
+                val player = room.players.find { it.odId == userId }
+                    ?: throw Exception("Player not found in room")
+
+                // Already this color — no-op
+                if (player.color == newColor.name) return@runTransaction
+
+                // Check if color is taken by another player
+                val colorTaken = room.players.any { it.odId != userId && it.color == newColor.name }
+                if (colorTaken) {
+                    throw Exception("Color already taken by another player")
+                }
+
+                val updatedPlayers = room.players.map {
+                    if (it.odId == userId) it.copy(color = newColor.name) else it
+                }
+                transaction.update(docRef, "players", updatedPlayers.map { it.toMap() })
+            }.await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Update player activity timestamp.
      */
     suspend fun updateActivity(roomId: String): Result<Unit> {

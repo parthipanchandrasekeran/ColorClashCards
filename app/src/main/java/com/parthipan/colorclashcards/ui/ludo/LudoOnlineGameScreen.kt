@@ -1,8 +1,5 @@
 package com.parthipan.colorclashcards.ui.ludo
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -262,21 +259,8 @@ fun LudoOnlineGameScreen(
                 }
             }
 
-            // AFK Warning overlay
-            AnimatedVisibility(
-                visible = uiState.afkWarning,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.3f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    AfkWarningCard(countdown = uiState.afkCountdown ?: 0)
-                }
-            }
+            // AFK warning is shown inline via CompactGameControls (red card + countdown text)
+            // No overlay — overlays block dice and token interaction
         }
     }
 
@@ -544,61 +528,6 @@ private fun CompactGameControls(
     }
 }
 
-/**
- * AFK warning card.
- */
-@Composable
-private fun AfkWarningCard(countdown: Int) {
-    Card(
-        modifier = Modifier.testTag("afkWarningCard"),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer
-        ),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.error
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Are you still there?",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Your turn will be skipped in",
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            Text(
-                text = "$countdown seconds",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.testTag("afkCountdown")
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Make a move to continue playing!",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
-}
 
 
 /**

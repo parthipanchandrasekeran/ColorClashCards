@@ -385,11 +385,11 @@ class LudoRoomRepository {
 
     /**
      * Observe public rooms for lobby.
-     * Uses single-field query on "status" to avoid requiring a composite index,
-     * then filters isPublic client-side.
+     * Uses composite index on (isPublic, status) for efficient Firestore-level filtering.
      */
     fun observePublicRooms(): Flow<List<LudoRoom>> = callbackFlow {
         val listener = roomsCollection
+            .whereEqualTo("isPublic", true)
             .whereEqualTo("status", LudoRoomStatus.WAITING.name)
             .limit(50)
             .addSnapshotListener { snapshot, error ->
@@ -409,7 +409,7 @@ class LudoRoomRepository {
                     } catch (e: Exception) {
                         null
                     }
-                }.filter { it.isPublic }
+                }
                 trySend(rooms)
             }
         awaitClose { listener.remove() }

@@ -236,6 +236,7 @@ class LudoOnlineViewModel : ViewModel() {
             gameState = gameState,
             room = room,
             isLoading = false,
+            isRolling = if (!isMyTurn) false else _uiState.value.isRolling,
             isMyTurn = isMyTurn,
             diceValue = matchState.diceValue,
             canRoll = isMyTurn && gameState.canRollDice,
@@ -469,6 +470,9 @@ class LudoOnlineViewModel : ViewModel() {
         viewModelScope.launch {
             // If host, process locally
             if (state.isHost) {
+                // Simulate rolling animation delay (matching offline)
+                delay(500)
+
                 val gameState = localGameState ?: return@launch
                 val diceValue = LudoBotAgent.rollDice()
                 val newState = LudoEngine.rollDice(gameState, diceValue)
@@ -492,9 +496,12 @@ class LudoOnlineViewModel : ViewModel() {
                 // Then persist to Firestore
                 matchRepository.updateMatchState(roomId, newState)
             } else {
-                // Send action to host
+                // Simulate rolling animation delay (matching offline)
+                delay(500)
+
+                // Clear rolling state locally (don't rely on Firestore round-trip)
+                _uiState.value = _uiState.value.copy(isRolling = false, canRoll = false)
                 matchRepository.sendAction(roomId, LudoActionType.ROLL_DICE)
-                _uiState.value = _uiState.value.copy(isRolling = false)
             }
         }
     }
@@ -578,11 +585,15 @@ class LudoOnlineViewModel : ViewModel() {
     private fun executeOnlineTokenMove(tokenId: Int) {
         val state = _uiState.value
 
+        // Stop AFK timer during animation (matching offline behavior)
+        stopAfkMonitor()
+
         // Start animation
         _uiState.value = state.copy(
             isTokenAnimating = true,
             animatingTokenId = tokenId,
-            animationProgress = 0f
+            animationProgress = 0f,
+            showTimer = false
         )
 
         viewModelScope.launch {
@@ -632,13 +643,25 @@ class LudoOnlineViewModel : ViewModel() {
                     }
                 }
             } else {
+                // Optimistic local update: compute expected state so token stays at destination
+                val currentGameState = localGameState
+                val optimisticState = if (currentGameState != null) {
+                    when (val result = LudoEngine.moveToken(currentGameState, tokenId)) {
+                        is MoveResult.Success -> result.newState
+                        is MoveResult.Error -> null
+                    }
+                } else null
+
                 _uiState.value = _uiState.value.copy(
+                    gameState = optimisticState ?: _uiState.value.gameState,
                     isTokenAnimating = false,
                     animatingTokenId = null,
                     animationProgress = 0f,
                     selectedTokenId = null,
                     previewPath = emptyList()
                 )
+
+                // Send move to host — Firestore state will overwrite with canonical result
                 matchRepository.sendAction(roomId, LudoActionType.MOVE_TOKEN, tokenId)
             }
         }

@@ -14,11 +14,6 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
-    // Check if user is a player in this room
-    function isPlayerInRoom(roomId) {
-      return exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(uid()));
-    }
-
     // Check if user is the host of this room
     function isHost(roomId) {
       return get(/databases/$(database)/documents/rooms/$(roomId)).data.hostId == uid();

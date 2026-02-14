@@ -2,6 +2,7 @@ package com.parthipan.colorclashcards.ui.ludo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.parthipan.colorclashcards.game.ludo.engine.LudoBoard
 import com.parthipan.colorclashcards.game.ludo.engine.LudoBotAgent
 import com.parthipan.colorclashcards.game.ludo.engine.LudoDebugLogger
 import com.parthipan.colorclashcards.game.ludo.engine.LudoEngine
@@ -282,7 +283,20 @@ class LudoOfflineViewModel(
 
         val message = when {
             newState.consecutiveSixes >= 3 -> "Three 6s! Turn skipped."
-            movableTokens.isEmpty() -> "No valid moves. Turn passed."
+            movableTokens.isEmpty() -> {
+                // Provide specific message for why no moves are available
+                val hasActiveTokensInLane = currentPlayer.tokens.any { token ->
+                    token.state == TokenState.ACTIVE && token.position > LudoBoard.RING_END
+                }
+                val hasHomeTokens = currentPlayer.tokens.any { it.state == TokenState.HOME }
+                when {
+                    hasActiveTokensInLane && diceValue == 6 && !hasHomeTokens ->
+                        "Tokens too close to finish — need exact roll."
+                    hasActiveTokensInLane ->
+                        "Need exact roll to finish. Turn passed."
+                    else -> "No valid moves. Turn passed."
+                }
+            }
             diceValue == 6 && movableTokens.isNotEmpty() -> "Rolled 6! Move a token."
             else -> "Rolled $diceValue"
         }
@@ -311,12 +325,12 @@ class LudoOfflineViewModel(
             }
         }
 
-        // Auto-select if only one token can move
+        // Auto-move if only one token can move (skip "Tap again" confirmation)
         if (newState.mustSelectToken && movableIds.size == 1 &&
             newState.currentTurnPlayerId == currentState.humanPlayerId) {
             viewModelScope.launch {
                 delay(300)
-                selectToken(movableIds.first())
+                executeTokenMove(movableIds.first())
             }
         }
     }
@@ -390,7 +404,13 @@ class LudoOfflineViewModel(
             }
 
             val boardPos = LudoBoardPositions.getGridPosition(nextPos, color)
-            boardPos?.let { positions.add(it) }
+            if (boardPos != null) {
+                positions.add(boardPos)
+            } else {
+                // Position has no grid mapping — still count the step
+                // Use the last known position or finish position as fallback
+                positions.add(positions.lastOrNull() ?: LudoBoardPositions.getFinishPosition(color))
+            }
             currentPos = nextPos
         }
 
@@ -456,7 +476,8 @@ class LudoOfflineViewModel(
     fun clearTokenSelection() {
         _uiState.value = _uiState.value.copy(
             selectedTokenId = null,
-            previewPath = emptyList()
+            previewPath = emptyList(),
+            message = if (_uiState.value.mustSelectToken) "Select a token to move" else _uiState.value.message
         )
     }
 

@@ -27,8 +27,9 @@ service cloud.firestore {
     // ========== ROOMS ==========
 
     match /rooms/{roomId} {
-      // Players in the room can read room info
-      allow read: if isAuth() && isPlayerInRoom(roomId);
+      // Any authenticated user can read rooms
+      // (room code acts as access control for joining, matching ludoRooms pattern)
+      allow read: if isAuth();
 
       // Anyone authenticated can create a room (they become host)
       allow create: if isAuth() && request.resource.data.hostId == uid();
@@ -42,8 +43,8 @@ service cloud.firestore {
       // ========== PLAYERS SUBCOLLECTION ==========
 
       match /players/{playerId} {
-        // All players in room can read player list
-        allow read: if isAuth() && isPlayerInRoom(roomId);
+        // All authenticated users can read player list
+        allow read: if isAuth();
 
         // User can add themselves as a player
         allow create: if isAuth() && playerId == uid();
@@ -61,8 +62,8 @@ service cloud.firestore {
       // ========== MATCH SUBCOLLECTION ==========
 
       match /match/public {
-        // All players can read public match state
-        allow read: if isAuth() && isPlayerInRoom(roomId);
+        // All authenticated users can read public match state
+        allow read: if isAuth();
 
         // Only host can write public match state
         allow write: if isAuth() && isHost(roomId);
@@ -80,12 +81,11 @@ service cloud.firestore {
       // ========== ACTIONS SUBCOLLECTION ==========
 
       match /actions/{actionId} {
-        // All players can read actions (for debugging/UI)
-        allow read: if isAuth() && isPlayerInRoom(roomId);
+        // All authenticated users can read actions
+        allow read: if isAuth();
 
         // Player can only create actions for themselves
         allow create: if isAuth()
-          && isPlayerInRoom(roomId)
           && request.resource.data.playerId == uid();
 
         // Only host can update actions (mark as processed)

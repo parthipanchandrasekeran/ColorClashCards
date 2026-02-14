@@ -337,6 +337,7 @@ private fun DrawScope.drawTriangle(
 
 /**
  * Draw safe cells (star positions) and start cells (arrows) on the track.
+ * Each safe cell gets a visible colored border that remains visible even with tokens on top.
  */
 private fun DrawScope.drawSafeCells(cellSize: Float, reusablePath: Path) {
     // Start cells (colored with arrow/star)
@@ -344,6 +345,8 @@ private fun DrawScope.drawSafeCells(cellSize: Float, reusablePath: Path) {
         val startCell = LudoBoard.START_CELL_BY_COLOR[color] ?: return@forEach
         val (row, col) = startCell
         drawStartingCell(col * cellSize, row * cellSize, cellSize, LudoBoardColors.getColor(color), reusablePath)
+        // Draw safe zone border ring around start cell
+        drawSafeCellBorder(col * cellSize, row * cellSize, cellSize, LudoBoardColors.getColor(color))
     }
 
     // Star positions derived from the canonical SAFE_CELLS, excluding start cells.
@@ -351,13 +354,40 @@ private fun DrawScope.drawSafeCells(cellSize: Float, reusablePath: Path) {
     val startCells = LudoBoard.START_CELL_BY_COLOR.values.toSet()
     val starPositions = LudoBoard.SAFE_CELLS.filter { it !in startCells }
 
+    // Find which color each star belongs to (8 cells after start)
     starPositions.forEach { (row, col) ->
         // Guard: verify star position is on visible track (not in any home area)
         val isOnTrack = isPositionOnTrack(row, col)
         if (isOnTrack) {
             drawSafeStarCell(col * cellSize, row * cellSize, cellSize, reusablePath)
+            // Determine owning color for the border (star at start+8 for each color)
+            val ownerColor = LudoColor.entries.firstOrNull { color ->
+                val startIdx = LudoBoard.START_INDEX_BY_COLOR[color] ?: return@firstOrNull false
+                val starIdx = (startIdx + 8) % LudoBoard.RING_SIZE
+                LudoBoard.getRingCell(starIdx) == Pair(row, col)
+            }
+            val borderColor = if (ownerColor != null) {
+                LudoBoardColors.getColor(ownerColor)
+            } else {
+                LudoBoardColors.SafeCell
+            }
+            drawSafeCellBorder(col * cellSize, row * cellSize, cellSize, borderColor)
         }
     }
+}
+
+/**
+ * Draw a visible colored border around a safe zone cell.
+ * This border remains visible even when a token is placed on top.
+ */
+private fun DrawScope.drawSafeCellBorder(x: Float, y: Float, cellSize: Float, color: Color) {
+    val inset = cellSize * 0.05f
+    drawRect(
+        color = color,
+        topLeft = Offset(x + inset, y + inset),
+        size = Size(cellSize - 2 * inset, cellSize - 2 * inset),
+        style = Stroke(width = cellSize * 0.08f)
+    )
 }
 
 /**

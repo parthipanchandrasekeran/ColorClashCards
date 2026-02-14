@@ -18,6 +18,7 @@ data class LudoMatchState(
     val gameStatus: String = GameStatus.IN_PROGRESS.name,
     val winnerId: String? = null,
     val players: List<LudoMatchPlayer> = emptyList(),
+    val finishOrder: List<String> = emptyList(),
     val lastMove: LudoMatchMove? = null,
     val turnStartedAt: Timestamp? = null,      // For AFK timeout
     val lastActionAt: Timestamp? = null,       // Track activity
@@ -42,6 +43,7 @@ data class LudoMatchState(
                 gameStatus = map["gameStatus"] as? String ?: GameStatus.IN_PROGRESS.name,
                 winnerId = map["winnerId"] as? String,
                 players = playersData.map { LudoMatchPlayer.fromMap(it) },
+                finishOrder = (map["finishOrder"] as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
                 lastMove = lastMoveData?.let { LudoMatchMove.fromMap(it) },
                 turnStartedAt = map["turnStartedAt"] as? Timestamp,
                 lastActionAt = map["lastActionAt"] as? Timestamp,
@@ -59,6 +61,7 @@ data class LudoMatchState(
                 gameStatus = gameState.gameStatus.name,
                 winnerId = gameState.winnerId,
                 players = gameState.players.map { LudoMatchPlayer.fromPlayer(it) },
+                finishOrder = gameState.finishOrder,
                 lastMove = gameState.lastMove?.let { LudoMatchMove.fromMove(it) },
                 turnStartedAt = Timestamp.now(),
                 lastActionAt = Timestamp.now()
@@ -75,6 +78,7 @@ data class LudoMatchState(
         "gameStatus" to gameStatus,
         "winnerId" to winnerId,
         "players" to players.map { it.toMap() },
+        "finishOrder" to finishOrder,
         "lastMove" to lastMove?.toMap(),
         "turnStartedAt" to turnStartedAt,
         "lastActionAt" to lastActionAt,
@@ -91,7 +95,8 @@ data class LudoMatchState(
             gameStatus = try { GameStatus.valueOf(gameStatus) } catch (e: Exception) { GameStatus.IN_PROGRESS },
             consecutiveSixes = consecutiveSixes,
             canRollDice = canRollDice,
-            mustSelectToken = mustSelectToken
+            mustSelectToken = mustSelectToken,
+            finishOrder = finishOrder
         )
     }
 }

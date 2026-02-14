@@ -368,15 +368,18 @@ fun SettingsScreen(
                     title = "Check for Update",
                     subtitle = when (updateStatus) {
                         UpdateStatus.Checking -> "Checking..."
-                        UpdateStatus.Available -> "Update available, starting..."
+                        UpdateStatus.Available -> "Update available, starting download..."
                         UpdateStatus.Downloading -> "Downloading update..."
                         UpdateStatus.Downloaded -> "Installing update..."
                         UpdateStatus.UpToDate -> "App is up to date!"
-                        UpdateStatus.Error -> "Error checking for updates"
+                        UpdateStatus.Error -> "Update failed. Tap to retry."
                         UpdateStatus.Idle -> null
                     },
                     onClick = {
-                        if (updateStatus != UpdateStatus.Checking) {
+                        val canClick = updateStatus == UpdateStatus.Idle ||
+                            updateStatus == UpdateStatus.UpToDate ||
+                            updateStatus == UpdateStatus.Error
+                        if (canClick) {
                             viewModel.checkForUpdate(activity)
                         }
                     },

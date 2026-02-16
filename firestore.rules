@@ -89,6 +89,25 @@ service cloud.firestore {
         // Only host can delete actions (cleanup)
         allow delete: if isAuth() && isHost(roomId);
       }
+
+      // ========== VOICE CHAT ==========
+
+      match /voiceChat/participants/{userId} {
+        allow read: if isAuth();
+        allow write: if isAuth() && userId == uid();
+      }
+
+      match /voicePeers/{pairId} {
+        allow read, write: if isAuth();
+
+        match /offerCandidates/{candidateId} {
+          allow read, write: if isAuth();
+        }
+
+        match /answerCandidates/{candidateId} {
+          allow read, write: if isAuth();
+        }
+      }
     }
 
     // ========== LUDO ROOMS ==========
@@ -161,6 +180,25 @@ service cloud.firestore {
         // Only host can update/delete actions
         allow update: if isAuth() && isLudoHost(roomId);
         allow delete: if isAuth() && isLudoHost(roomId);
+      }
+
+      // ========== VOICE CHAT ==========
+
+      match /voiceChat/participants/{userId} {
+        allow read: if isAuth();
+        allow write: if isAuth() && userId == uid();
+      }
+
+      match /voicePeers/{pairId} {
+        allow read, write: if isAuth();
+
+        match /offerCandidates/{candidateId} {
+          allow read, write: if isAuth();
+        }
+
+        match /answerCandidates/{candidateId} {
+          allow read, write: if isAuth();
+        }
       }
     }
   }

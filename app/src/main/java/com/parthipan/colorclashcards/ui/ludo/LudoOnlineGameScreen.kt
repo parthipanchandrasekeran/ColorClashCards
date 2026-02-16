@@ -63,6 +63,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parthipan.colorclashcards.audio.LocalSoundManager
 import com.parthipan.colorclashcards.audio.SoundEffect
 import com.parthipan.colorclashcards.ui.components.CelebrationOverlay
+import com.parthipan.colorclashcards.ui.components.VoiceChatControls
+import com.parthipan.colorclashcards.voice.VoiceChatManager
+import com.google.firebase.auth.FirebaseAuth
 import com.parthipan.colorclashcards.game.ludo.model.LudoColor
 import com.parthipan.colorclashcards.game.ludo.model.LudoPlayer
 import com.parthipan.colorclashcards.game.ludo.model.Token
@@ -82,6 +85,12 @@ fun LudoOnlineGameScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val soundManager = LocalSoundManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val voiceChatScope = androidx.compose.runtime.rememberCoroutineScope()
+    val voiceChatManager = remember { VoiceChatManager(context, voiceChatScope) }
+    val localDisplayName = remember {
+        FirebaseAuth.getInstance().currentUser?.displayName ?: "Player"
+    }
 
     // Initialize on first composition
     LaunchedEffect(roomId) {
@@ -273,6 +282,7 @@ fun LudoOnlineGameScreen(
                             canRoll = uiState.canRoll,
                             mustSelectToken = uiState.mustSelectToken,
                             isMyTurn = uiState.isMyTurn,
+                            currentPlayerName = gameState.currentPlayer.name,
                             afkWarning = uiState.afkWarning,
                             afkCountdown = uiState.afkCountdown,
                             timerProgress = uiState.timerProgress,
@@ -288,6 +298,18 @@ fun LudoOnlineGameScreen(
 
             // AFK warning is shown inline via CompactGameControls (red card + countdown text)
             // No overlay — overlays block dice and token interaction
+
+            // Voice chat FAB overlay
+            if (gameState != null) {
+                VoiceChatControls(
+                    voiceChatManager = voiceChatManager,
+                    roomPath = "ludoRooms/$roomId",
+                    displayName = localDisplayName,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp)
+                )
+            }
         }
     }
 
@@ -487,6 +509,7 @@ private fun CompactGameControls(
     canRoll: Boolean,
     mustSelectToken: Boolean,
     isMyTurn: Boolean,
+    currentPlayerName: String = "",
     afkWarning: Boolean,
     afkCountdown: Int?,
     timerProgress: Float,
@@ -538,7 +561,7 @@ private fun CompactGameControls(
                     canRoll -> "Tap dice to roll"
                     mustSelectToken -> "Select a token to move"
                     isMyTurn -> "Waiting for dice roll..."
-                    else -> "Waiting for other player..."
+                    else -> "${currentPlayerName}'s turn..."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (afkWarning) {

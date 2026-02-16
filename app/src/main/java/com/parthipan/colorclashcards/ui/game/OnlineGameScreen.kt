@@ -64,10 +64,13 @@ import com.parthipan.colorclashcards.game.model.CardColor
 import com.parthipan.colorclashcards.game.model.CardType
 import com.parthipan.colorclashcards.game.model.TurnPhase
 import com.parthipan.colorclashcards.ui.components.GameCardView
+import com.parthipan.colorclashcards.ui.components.VoiceChatControls
 import com.parthipan.colorclashcards.ui.theme.CardBlue
 import com.parthipan.colorclashcards.ui.theme.CardGreen
 import com.parthipan.colorclashcards.ui.theme.CardRed
 import com.parthipan.colorclashcards.ui.theme.CardYellow
+import com.parthipan.colorclashcards.voice.VoiceChatManager
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,6 +82,12 @@ fun OnlineGameScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val voiceChatScope = androidx.compose.runtime.rememberCoroutineScope()
+    val voiceChatManager = remember { VoiceChatManager(context, voiceChatScope) }
+    val localDisplayName = remember {
+        FirebaseAuth.getInstance().currentUser?.displayName ?: "Player"
+    }
 
     // Initialize game
     LaunchedEffect(roomId, isHost) {
@@ -287,6 +296,18 @@ fun OnlineGameScreen(
                         )
                     }
                 }
+            }
+
+            // Voice chat FAB overlay
+            if (uiState.publicState != null) {
+                VoiceChatControls(
+                    voiceChatManager = voiceChatManager,
+                    roomPath = "rooms/$roomId",
+                    displayName = localDisplayName,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 16.dp)
+                )
             }
 
             // Color picker dialog

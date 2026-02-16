@@ -45,6 +45,10 @@
     public static ** valueOf(java.lang.String);
 }
 
+# WebRTC
+-keep class org.webrtc.** { *; }
+-dontwarn org.webrtc.**
+
 # Strip debug/verbose logging in release builds
 -assumenosideeffects class android.util.Log {
     public static int d(...);

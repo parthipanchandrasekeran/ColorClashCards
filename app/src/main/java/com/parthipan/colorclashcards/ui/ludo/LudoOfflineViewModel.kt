@@ -306,7 +306,8 @@ class LudoOfflineViewModel(
                 gameState = newState,
                 isRolling = false,
                 diceValue = diceValue,
-                canRoll = newState.canRollDice && !newState.mustSelectToken,
+                canRoll = newState.canRollDice && !newState.mustSelectToken
+                    && newState.currentTurnPlayerId == it.humanPlayerId,
                 mustSelectToken = newState.mustSelectToken,
                 movableTokenIds = if (newState.mustSelectToken) movableIds else emptyList(),
                 message = message,

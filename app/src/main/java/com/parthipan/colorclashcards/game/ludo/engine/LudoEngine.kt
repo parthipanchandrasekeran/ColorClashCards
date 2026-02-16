@@ -561,8 +561,9 @@ object LudoEngine {
     fun startGame(players: List<LudoPlayer>): LudoGameState {
         require(players.size in 2..4) { "Ludo requires 2-4 players" }
 
+        val sorted = players.sortedBy { LudoColor.clockwiseIndex(it.color) }
         return LudoGameState(
-            players = players,
+            players = sorted,
             currentTurnPlayerId = players.first().id,
             gameStatus = GameStatus.IN_PROGRESS,
             canRollDice = true

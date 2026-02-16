@@ -164,7 +164,8 @@ data class LudoGameState(
                 LudoPlayer.bot("Bot ${index + 1}", color)
             }
 
-            val allPlayers = listOf(humanPlayer) + botPlayers
+            val allPlayers = (listOf(humanPlayer) + botPlayers)
+                .sortedBy { LudoColor.clockwiseIndex(it.color) }
 
             return LudoGameState(
                 players = allPlayers,

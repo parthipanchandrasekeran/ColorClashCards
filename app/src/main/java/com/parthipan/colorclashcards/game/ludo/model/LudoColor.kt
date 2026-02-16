@@ -11,6 +11,11 @@ enum class LudoColor {
     YELLOW;
 
     companion object {
+        /** Clockwise order matching the board ring path */
+        val CLOCKWISE_ORDER = listOf(GREEN, YELLOW, BLUE, RED)
+
+        fun clockwiseIndex(color: LudoColor): Int = CLOCKWISE_ORDER.indexOf(color)
+
         /**
          * Get the color for a given player index (0-3).
          */

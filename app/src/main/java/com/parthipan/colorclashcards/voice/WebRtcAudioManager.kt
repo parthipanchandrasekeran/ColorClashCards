@@ -1,6 +1,7 @@
 package com.parthipan.colorclashcards.voice
 
 import android.content.Context
+import android.media.AudioManager
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -31,13 +32,21 @@ class WebRtcAudioManager(private val context: Context) {
         private const val LOCAL_TRACK_ID = "voice_local_audio"
         private const val LOCAL_STREAM_ID = "voice_local_stream"
         private val ICE_SERVERS = listOf(
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("turn:openrelay.metered.ca:80")
+                .setUsername("openrelayproject").setPassword("openrelayproject").createIceServer(),
+            PeerConnection.IceServer.builder("turn:openrelay.metered.ca:443")
+                .setUsername("openrelayproject").setPassword("openrelayproject").createIceServer(),
+            PeerConnection.IceServer.builder("turns:openrelay.metered.ca:443?transport=tcp")
+                .setUsername("openrelayproject").setPassword("openrelayproject").createIceServer()
         )
     }
 
     private var factory: PeerConnectionFactory? = null
     private var audioSource: AudioSource? = null
     private var localAudioTrack: AudioTrack? = null
+    private var previousAudioMode: Int = AudioManager.MODE_NORMAL
+    private var previousSpeakerOn: Boolean = false
 
     /** PeerConnection per remote userId. */
     private val connections = mutableMapOf<String, PeerConnection>()
@@ -76,6 +85,13 @@ class WebRtcAudioManager(private val context: Context) {
             setEnabled(true)
         }
 
+        // Configure AudioManager for VoIP
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        previousAudioMode = audioManager.mode
+        previousSpeakerOn = audioManager.isSpeakerphoneOn
+        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+        audioManager.isSpeakerphoneOn = true
+
         Log.d(TAG, "WebRTC initialized, local audio track created")
     }
 
@@ -108,6 +124,7 @@ class WebRtcAudioManager(private val context: Context) {
             override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>) {}
             override fun onAddStream(stream: MediaStream) {
                 Log.d(TAG, "Remote stream added from $remoteUserId (tracks: ${stream.audioTracks.size})")
+                stream.audioTracks.forEach { it.setEnabled(true) }
             }
             override fun onRemoveStream(stream: MediaStream) {}
             override fun onDataChannel(dc: org.webrtc.DataChannel) {}
@@ -188,6 +205,12 @@ class WebRtcAudioManager(private val context: Context) {
         audioSource = null
         factory?.dispose()
         factory = null
+
+        // Restore AudioManager state
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioManager.mode = previousAudioMode
+        audioManager.isSpeakerphoneOn = previousSpeakerOn
+
         Log.d(TAG, "WebRTC resources released")
     }
 

@@ -68,10 +68,20 @@ class LudoMatchRepository {
     /**
      * Update match state.
      * Called by host after processing a move.
+     *
+     * @param rolledDiceValue Optional override for diceValue. When the engine auto-advances
+     *   the turn (no valid moves), gameState.diceValue becomes null. Pass the actual rolled
+     *   value here so the other player's UI shows the correct dice face.
      */
-    suspend fun updateMatchState(roomId: String, gameState: LudoGameState): Result<Unit> {
+    suspend fun updateMatchState(
+        roomId: String,
+        gameState: LudoGameState,
+        rolledDiceValue: Int? = null
+    ): Result<Unit> {
         return try {
-            val matchState = LudoMatchState.fromGameState(gameState)
+            val matchState = LudoMatchState.fromGameState(gameState).let {
+                if (rolledDiceValue != null) it.copy(diceValue = rolledDiceValue) else it
+            }
 
             firestore.collection("ludoRooms")
                 .document(roomId)

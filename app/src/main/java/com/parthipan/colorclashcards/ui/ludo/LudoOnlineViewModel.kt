@@ -85,6 +85,7 @@ class LudoOnlineViewModel : ViewModel() {
     private var roomId: String = ""
     private var localGameState: LudoGameState? = null
     private var lastTurnStartedAt: Timestamp? = null
+    private var isProcessingAfkTurn = false
 
     private var observeJob: Job? = null
     private var hostJob: Job? = null
@@ -235,9 +236,11 @@ class LudoOnlineViewModel : ViewModel() {
         // Don't overwrite dice value with null — keep last visible value until new turn starts
         val previousTurnPlayer = _uiState.value.gameState?.currentTurnPlayerId
         val turnChanged = previousTurnPlayer != null && previousTurnPlayer != gameState.currentTurnPlayerId
+        val wasRolling = _uiState.value.isRolling
         val newDiceValue = when {
-            matchState.diceValue != null -> matchState.diceValue  // New dice value from Firestore
-            turnChanged -> null  // Turn changed, clear dice
+            matchState.diceValue != null && !turnChanged -> matchState.diceValue  // New dice value, same turn
+            matchState.diceValue != null && wasRolling -> matchState.diceValue    // Roller sees their result even on turn change
+            turnChanged -> null  // Turn changed, clear dice for non-roller
             else -> _uiState.value.diceValue  // Keep previous dice value visible
         }
 
@@ -331,7 +334,7 @@ class LudoOnlineViewModel : ViewModel() {
                         gameState = newState,
                         diceValue = diceValue
                     )
-                    matchRepository.updateMatchState(roomId, newState)
+                    matchRepository.updateMatchState(roomId, newState, diceValue)
                 }
             }
 
@@ -364,10 +367,11 @@ class LudoOnlineViewModel : ViewModel() {
     }
 
     /**
-     * Check for AFK players and disconnects (host only).
+     * Check for AFK players and auto-play for them (host only).
      */
     private suspend fun checkAfkAndDisconnects() {
         if (!_uiState.value.isHost) return
+        if (isProcessingAfkTurn) return
 
         val gameState = localGameState ?: return
         if (gameState.isGameOver) return
@@ -379,15 +383,66 @@ class LudoOnlineViewModel : ViewModel() {
         if (matchRepository.isPlayerAfk(turnStartedAt)) {
             val currentPlayer = gameState.currentPlayer
 
-            // Skip turn for AFK player
+            // Auto-play for AFK player using bot AI
             if (!currentPlayer.isBot) {
-                val newState = LudoEngine.advanceToNextPlayer(gameState)
-                localGameState = newState
-                matchRepository.updateMatchState(roomId, newState)
+                isProcessingAfkTurn = true
+                try {
+                    processBotTurnForAfkPlayer(gameState)
+                } finally {
+                    isProcessingAfkTurn = false
+                }
+            }
+        }
+    }
 
-                _uiState.value = _uiState.value.copy(
-                    message = "${currentPlayer.name}'s turn was skipped (AFK)"
-                )
+    /**
+     * Auto-play a turn for an AFK player using bot AI.
+     * Rolls dice and moves tokens, handling bonus turns.
+     */
+    private suspend fun processBotTurnForAfkPlayer(initialState: LudoGameState) {
+        var gameState = initialState
+        val afkPlayerId = gameState.currentTurnPlayerId
+
+        while (gameState.currentTurnPlayerId == afkPlayerId && !gameState.isGameOver) {
+            val player = gameState.currentPlayer
+
+            _uiState.value = _uiState.value.copy(
+                message = "${player.name} (auto-play)..."
+            )
+            delay(500)
+
+            // Roll dice
+            val diceValue = LudoBotAgent.rollDice()
+            val stateAfterRoll = LudoEngine.rollDice(gameState, diceValue)
+            gameState = stateAfterRoll
+            localGameState = gameState
+            matchRepository.updateMatchState(roomId, gameState, diceValue)
+            delay(800)
+
+            // No valid moves — engine already advanced turn
+            if (!gameState.mustSelectToken) break
+
+            // Pick a token using bot AI
+            val movableTokens = LudoEngine.getMovableTokens(player, diceValue)
+            if (movableTokens.isEmpty()) break
+            val tokenId = LudoBotAgent.chooseToken(gameState, movableTokens, "normal")
+            delay(500)
+
+            // Execute move
+            when (val result = LudoEngine.moveToken(gameState, tokenId)) {
+                is MoveResult.Success -> {
+                    gameState = result.newState
+                    localGameState = gameState
+                    matchRepository.updateMatchState(roomId, gameState)
+
+                    if (result.hasWon) {
+                        matchRepository.endMatch(roomId, gameState.winnerId!!)
+                        return
+                    }
+                    if (!result.bonusTurn) break  // Turn over
+                    delay(500)  // Bonus turn, loop continues
+                }
+                is MoveResult.Error -> break
             }
         }
     }
@@ -523,8 +578,8 @@ class LudoOnlineViewModel : ViewModel() {
                     movableTokenIds = movableIds
                 )
 
-                // Then persist to Firestore
-                matchRepository.updateMatchState(roomId, newState)
+                // Then persist to Firestore (pass diceValue so other player sees correct dice face)
+                matchRepository.updateMatchState(roomId, newState, diceValue)
 
                 // Auto-move if only one token can move (skip "Tap again" confirmation)
                 if (newState.mustSelectToken && movableIds.size == 1) {

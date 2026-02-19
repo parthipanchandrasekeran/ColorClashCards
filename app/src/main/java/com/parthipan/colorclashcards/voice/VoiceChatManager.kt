@@ -196,15 +196,21 @@ class VoiceChatManager(
                 try {
                     val offer = webRtc.createOffer(remoteUid) ?: return@launch
                     signaling.sendOffer(path, pairId, offer.description)
+                    Log.d(TAG, "Offer sent for $remoteUid")
 
-                    // Wait for answer
+                    // Wait for answer (process only once)
+                    var answerProcessed = false
                     signaling.observeAnswer(path, pairId).collect { answerSdp ->
-                        if (answerSdp != null) {
+                        if (answerSdp != null && !answerProcessed) {
+                            answerProcessed = true
                             webRtc.setRemoteDescription(
                                 remoteUid,
                                 SessionDescription.Type.ANSWER,
                                 answerSdp
                             )
+                            // Ensure remote audio tracks are enabled
+                            webRtc.enableRemoteAudio(remoteUid)
+                            Log.d(TAG, "Answer received and set for $remoteUid")
                         }
                     }
                 } catch (e: Exception) {
@@ -215,8 +221,10 @@ class VoiceChatManager(
             // We wait for the offer and send an answer
             jobs += scope.launch {
                 try {
+                    var offerProcessed = false
                     signaling.observeOffer(path, pairId).collect { offerSdp ->
-                        if (offerSdp != null) {
+                        if (offerSdp != null && !offerProcessed) {
+                            offerProcessed = true
                             webRtc.setRemoteDescription(
                                 remoteUid,
                                 SessionDescription.Type.OFFER,
@@ -224,6 +232,9 @@ class VoiceChatManager(
                             )
                             val answer = webRtc.createAnswer(remoteUid) ?: return@collect
                             signaling.sendAnswer(path, pairId, answer.description)
+                            // Ensure remote audio tracks are enabled
+                            webRtc.enableRemoteAudio(remoteUid)
+                            Log.d(TAG, "Offer received, answer sent for $remoteUid")
                         }
                     }
                 } catch (e: Exception) {
@@ -238,6 +249,7 @@ class VoiceChatManager(
                 signaling.observeIceCandidates(path, pairId, isOfferer).collect { candidates ->
                     for (c in candidates) {
                         val iceCandidate = IceCandidate(c.sdpMid, c.sdpMLineIndex, c.candidate)
+                        // addRemoteIceCandidate deduplicates internally
                         webRtc.addRemoteIceCandidate(remoteUid, iceCandidate)
                     }
                 }

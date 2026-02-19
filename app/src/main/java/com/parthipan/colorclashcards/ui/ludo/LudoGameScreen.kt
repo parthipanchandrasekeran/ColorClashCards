@@ -180,6 +180,7 @@ fun LudoGameScreen(
                 canRoll = isMyTurn && uiState.canRollDice,
                 mustSelectToken = uiState.mustSelectToken,
                 isMyTurn = isMyTurn,
+                currentPlayerName = gameState.currentPlayer.name,
                 onRollDice = { viewModel.rollDice() },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
@@ -316,6 +317,7 @@ private fun CompactDiceControls(
     canRoll: Boolean,
     mustSelectToken: Boolean,
     isMyTurn: Boolean,
+    currentPlayerName: String = "",
     onRollDice: () -> Unit,
     modifier: Modifier = Modifier,
     timerProgress: Float = 1f,
@@ -365,7 +367,7 @@ private fun CompactDiceControls(
                     canRoll -> "Tap dice to roll"
                     mustSelectToken -> "Select a token to move"
                     isMyTurn -> "Roll the dice to continue"
-                    else -> "Waiting for other player..."
+                    else -> "${currentPlayerName}'s turn..."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (isTimerWarning && isMyTurn) {

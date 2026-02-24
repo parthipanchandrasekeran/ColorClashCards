@@ -50,4 +50,23 @@ sealed class NavRoutes(val route: String) {
             return "ludo_online_game/$roomId/$isHost"
         }
     }
+
+    // Snake & Ladder routes
+    object SnlHome : NavRoutes("snl_home")
+    object SnlGame : NavRoutes("snl_game/{botCount}/{difficulty}/{colorIndex}/{boardLayout}") {
+        fun createRoute(botCount: Int, difficulty: String, colorIndex: Int = 0, boardLayout: String = "CLASSIC"): String {
+            return "snl_game/$botCount/$difficulty/$colorIndex/$boardLayout"
+        }
+    }
+    object SnlLobbyEntry : NavRoutes("snl_lobby_entry")
+    object SnlRoomLobby : NavRoutes("snl_room_lobby/{roomId}") {
+        fun createRoute(roomId: String): String {
+            return "snl_room_lobby/$roomId"
+        }
+    }
+    object SnlOnlineGame : NavRoutes("snl_online_game/{roomId}/{isHost}") {
+        fun createRoute(roomId: String, isHost: Boolean): String {
+            return "snl_online_game/$roomId/$isHost"
+        }
+    }
 }

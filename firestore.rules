@@ -215,5 +215,40 @@ service cloud.firestore {
         }
       }
     }
+
+    // ========== SNAKE & LADDER ROOMS ==========
+
+    // Check if user is the host of a SNL room
+    function isSnlHost(roomId) {
+      return get(/databases/$(database)/documents/snlRooms/$(roomId)).data.hostId == uid();
+    }
+
+    match /snlRooms/{roomId} {
+      allow read: if isAuth();
+      allow create: if isAuth() && request.resource.data.hostId == uid();
+      allow update: if isAuth();
+      allow delete: if isAuth() && isSnlHost(roomId);
+
+      // Match state
+      match /match/state {
+        allow read: if isAuth();
+        allow write: if isAuth() && isSnlHost(roomId);
+      }
+
+      // Presence
+      match /presence/{playerId} {
+        allow read: if isAuth();
+        allow write: if isAuth() && playerId == uid();
+      }
+
+      // Actions
+      match /actions/{actionId} {
+        allow read: if isAuth();
+        allow create: if isAuth()
+          && request.resource.data.playerId == uid();
+        allow update: if isAuth() && isSnlHost(roomId);
+        allow delete: if isAuth() && isSnlHost(roomId);
+      }
+    }
   }
 }

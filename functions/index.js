@@ -70,6 +70,7 @@ exports.cleanupStaleRooms = functions.pubsub
 
     const cardSubcollections = ["match", "actions", "voiceChat", "presence", "gameLogs"];
     const ludoSubcollections = ["presence"];
+    const snlSubcollections = ["presence"];
 
     try {
       // 1. Stale card game rooms (createdAt < 6 hours ago)
@@ -112,6 +113,26 @@ exports.cleanupStaleRooms = functions.pubsub
         "ended-ludo-rooms"
       );
 
+      // 5. Stale SNL rooms (createdAt < 6 hours ago)
+      const staleSnlRooms = db
+        .collection("snlRooms")
+        .where("createdAt", "<", cutoff);
+      const snlResult = await deleteQueryResults(
+        staleSnlRooms,
+        snlSubcollections,
+        "stale-snl-rooms"
+      );
+
+      // 6. Ended SNL rooms (any age)
+      const endedSnlRooms = db
+        .collection("snlRooms")
+        .where("status", "==", "ENDED");
+      const endedSnlResult = await deleteQueryResults(
+        endedSnlRooms,
+        snlSubcollections,
+        "ended-snl-rooms"
+      );
+
       functions.logger.info("Room cleanup complete", {
         staleCardRooms: cardResult.docsDeleted,
         staleCardSubDocs: cardResult.subDocsDeleted,
@@ -121,6 +142,10 @@ exports.cleanupStaleRooms = functions.pubsub
         endedCardSubDocs: endedCardResult.subDocsDeleted,
         endedLudoRooms: endedLudoResult.docsDeleted,
         endedLudoSubDocs: endedLudoResult.subDocsDeleted,
+        staleSnlRooms: snlResult.docsDeleted,
+        staleSnlSubDocs: snlResult.subDocsDeleted,
+        endedSnlRooms: endedSnlResult.docsDeleted,
+        endedSnlSubDocs: endedSnlResult.subDocsDeleted,
       });
     } catch (error) {
       functions.logger.error("Room cleanup failed", {

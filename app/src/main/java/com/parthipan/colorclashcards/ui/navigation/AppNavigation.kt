@@ -26,6 +26,11 @@ import com.parthipan.colorclashcards.ui.ludo.LudoLobbyEntryScreen
 import com.parthipan.colorclashcards.ui.ludo.LudoOfflineGameScreen
 import com.parthipan.colorclashcards.ui.ludo.LudoOnlineGameScreen
 import com.parthipan.colorclashcards.ui.ludo.LudoRoomLobbyScreen
+import com.parthipan.colorclashcards.ui.snl.SnlHomeScreen
+import com.parthipan.colorclashcards.ui.snl.SnlLobbyEntryScreen
+import com.parthipan.colorclashcards.ui.snl.SnlOfflineGameScreen
+import com.parthipan.colorclashcards.ui.snl.SnlOnlineGameScreen
+import com.parthipan.colorclashcards.ui.snl.SnlRoomLobbyScreen
 import com.parthipan.colorclashcards.ui.online.OnlineLobbyEntryScreen
 import com.parthipan.colorclashcards.ui.online.RoomLobbyScreen
 import com.parthipan.colorclashcards.ui.privacy.PrivacyScreen
@@ -118,6 +123,9 @@ fun AppNavigation(
                 },
                 onNavigateToLudo = {
                     navController.navigate(NavRoutes.LudoHome.route)
+                },
+                onNavigateToSnl = {
+                    navController.navigate(NavRoutes.SnlHome.route)
                 },
                 onNavigateToSettings = {
                     navController.navigate(NavRoutes.Settings.route)
@@ -218,6 +226,105 @@ fun AppNavigation(
                 isHost = isHost,
                 onBackClick = {
                     navController.popBackStack(NavRoutes.LudoHome.route, inclusive = false)
+                }
+            )
+        }
+
+        // ==================== SNAKE & LADDER ====================
+
+        composable(NavRoutes.SnlHome.route) {
+            SnlHomeScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onStartOfflineGame = { botCount, difficulty, colorIndex, boardLayout ->
+                    navController.navigate(NavRoutes.SnlGame.createRoute(botCount, difficulty, colorIndex, boardLayout))
+                },
+                onPlayOnline = {
+                    if (FirebaseAuth.getInstance().currentUser != null) {
+                        navController.navigate(NavRoutes.SnlLobbyEntry.route)
+                    } else {
+                        navController.navigate(NavRoutes.Auth.createRoute(returnRoute = NavRoutes.SnlLobbyEntry.route))
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = NavRoutes.SnlGame.route,
+            arguments = listOf(
+                navArgument("botCount") { type = NavType.IntType },
+                navArgument("difficulty") { type = NavType.StringType },
+                navArgument("colorIndex") { type = NavType.IntType },
+                navArgument("boardLayout") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val botCount = backStackEntry.arguments?.getInt("botCount") ?: 1
+            val difficulty = backStackEntry.arguments?.getString("difficulty") ?: "normal"
+            val colorIndex = backStackEntry.arguments?.getInt("colorIndex") ?: 0
+            val boardLayout = backStackEntry.arguments?.getString("boardLayout") ?: "CLASSIC"
+
+            SnlOfflineGameScreen(
+                botCount = botCount,
+                difficulty = difficulty,
+                colorIndex = colorIndex,
+                boardLayout = boardLayout,
+                onBackClick = {
+                    navController.popBackStack(NavRoutes.SnlHome.route, inclusive = false)
+                }
+            )
+        }
+
+        composable(NavRoutes.SnlLobbyEntry.route) {
+            SnlLobbyEntryScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onRoomCreated = { roomId ->
+                    navController.navigate(NavRoutes.SnlRoomLobby.createRoute(roomId))
+                },
+                onRoomJoined = { roomId ->
+                    navController.navigate(NavRoutes.SnlRoomLobby.createRoute(roomId))
+                }
+            )
+        }
+
+        composable(
+            route = NavRoutes.SnlRoomLobby.route,
+            arguments = listOf(
+                navArgument("roomId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val roomId = backStackEntry.arguments?.getString("roomId") ?: ""
+            SnlRoomLobbyScreen(
+                roomId = roomId,
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onGameStart = { startedRoomId, isHost ->
+                    navController.navigate(
+                        NavRoutes.SnlOnlineGame.createRoute(startedRoomId, isHost)
+                    ) {
+                        popUpTo(NavRoutes.SnlHome.route)
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = NavRoutes.SnlOnlineGame.route,
+            arguments = listOf(
+                navArgument("roomId") { type = NavType.StringType },
+                navArgument("isHost") { type = NavType.BoolType }
+            )
+        ) { backStackEntry ->
+            val roomId = backStackEntry.arguments?.getString("roomId") ?: ""
+            val isHost = backStackEntry.arguments?.getBoolean("isHost") ?: false
+            SnlOnlineGameScreen(
+                roomId = roomId,
+                isHost = isHost,
+                onBackClick = {
+                    navController.popBackStack(NavRoutes.SnlHome.route, inclusive = false)
                 }
             )
         }

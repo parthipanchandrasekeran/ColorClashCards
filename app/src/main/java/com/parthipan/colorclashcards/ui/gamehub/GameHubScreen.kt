@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
@@ -75,6 +77,7 @@ import androidx.compose.material.icons.filled.Person
 fun GameHubScreen(
     onNavigateToColorClash: () -> Unit,
     onNavigateToLudo: () -> Unit,
+    onNavigateToSnl: () -> Unit = {},
     onNavigateToSettings: () -> Unit,
     onSignIn: () -> Unit = {}
 ) {
@@ -116,6 +119,7 @@ fun GameHubScreen(
         var titleVisible by remember { mutableStateOf(false) }
         var card1Visible by remember { mutableStateOf(false) }
         var card2Visible by remember { mutableStateOf(false) }
+        var card3Visible by remember { mutableStateOf(false) }
 
         LaunchedEffect(Unit) {
             titleVisible = true
@@ -123,6 +127,8 @@ fun GameHubScreen(
             card1Visible = true
             delay(150)
             card2Visible = true
+            delay(150)
+            card3Visible = true
         }
 
         val titleAlpha by animateFloatAsState(
@@ -149,6 +155,14 @@ fun GameHubScreen(
             targetValue = if (card2Visible) 0f else 60f,
             animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow), label = "card2Offset"
         )
+        val card3Alpha by animateFloatAsState(
+            targetValue = if (card3Visible) 1f else 0f,
+            animationSpec = spring(stiffness = Spring.StiffnessLow), label = "card3Alpha"
+        )
+        val card3Offset by animateFloatAsState(
+            targetValue = if (card3Visible) 0f else 60f,
+            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow), label = "card3Offset"
+        )
 
         Column(
             modifier = Modifier
@@ -166,6 +180,7 @@ fun GameHubScreen(
                     shapeType = "rect"
                 )
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp)
                 .testTag("gameHubScreen"),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -236,6 +251,26 @@ fun GameHubScreen(
                         },
                         onClick = onNavigateToLudo,
                         testTag = "ludoCard"
+                    )
+                }
+
+                // Snake & Ladder Game Card
+                Box(
+                    modifier = Modifier.graphicsLayer {
+                        alpha = card3Alpha
+                        translationY = card3Offset
+                    }
+                ) {
+                    GameCard(
+                        title = "Snake & Ladder",
+                        subtitle = "Board Game",
+                        description = "Roll the dice, climb ladders and dodge snakes to reach 100!",
+                        gradientColors = listOf(Color(0xFFE53935), Color(0xFF43A047)),
+                        iconContent = {
+                            SnakeAndLadderIcon()
+                        },
+                        onClick = onNavigateToSnl,
+                        testTag = "snlCard"
                     )
                 }
             }
@@ -459,6 +494,65 @@ private fun LudoIcon() {
                     .size(24.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .background(CardGreen)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SnakeAndLadderIcon() {
+    // G4: Gentle bounce animation
+    val bounceTransition = rememberInfiniteTransition(label = "snl_bounce")
+    val bounceY by bounceTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "snl_bounce_y"
+    )
+
+    // Simple representation: wavy line (snake) + straight lines (ladder)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.graphicsLayer { translationY = bounceY }
+    ) {
+        // Ladder (green vertical bars + rungs)
+        Column(
+            modifier = Modifier.padding(start = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            repeat(3) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 28.dp, height = 4.dp)
+                        .background(CardGreen, RoundedCornerShape(2.dp))
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+        }
+
+        // Snake (red wavy S-shape)
+        Column(
+            modifier = Modifier.padding(end = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 18.dp, height = 10.dp)
+                    .background(CardRed, RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
+            )
+            Box(
+                modifier = Modifier
+                    .size(width = 18.dp, height = 10.dp)
+                    .padding(start = 8.dp)
+                    .background(CardRed, RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
+            )
+            Box(
+                modifier = Modifier
+                    .size(width = 18.dp, height = 10.dp)
+                    .background(CardRed, RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
             )
         }
     }

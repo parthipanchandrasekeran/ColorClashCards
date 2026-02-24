@@ -430,7 +430,7 @@ fun DiceWithTimer(
 
     Box(
         modifier = Modifier
-            .size(size + 24.dp)
+            .size(size + 16.dp)
             .testTag("diceTimerContainer"),
         contentAlignment = Alignment.Center
     ) {

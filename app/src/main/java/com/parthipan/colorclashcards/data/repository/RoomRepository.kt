@@ -1,5 +1,6 @@
 package com.parthipan.colorclashcards.data.repository
 
+import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
@@ -202,18 +203,25 @@ class RoomRepository(
             .limit(20)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
+                    Log.e("RoomRepository", "observePublicRooms error", error)
                     trySend(emptyList())
                     return@addSnapshotListener
                 }
 
+                val sixHoursAgoMillis = System.currentTimeMillis() - 6 * 3600 * 1000
                 val rooms = snapshot?.documents?.mapNotNull { doc ->
                     try {
                         Room.fromMap(doc.id, doc.data ?: emptyMap())
                     } catch (e: Exception) {
+                        Log.w("RoomRepository", "Failed to parse room ${doc.id}", e)
                         null
                     }
-                }?.filter { !it.isFull() } ?: emptyList()
+                }?.filter { room ->
+                    !room.isFull() &&
+                        (room.createdAt?.toDate()?.time ?: 0L) > sixHoursAgoMillis
+                } ?: emptyList()
 
+                Log.d("RoomRepository", "observePublicRooms: ${rooms.size} rooms found")
                 trySend(rooms)
             }
 

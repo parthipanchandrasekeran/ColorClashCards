@@ -120,15 +120,6 @@ class SoundManager(
         musicPaused = false
     }
 
-    /** Lower music volume to 10% while voice chat is active. */
-    fun duckMusicForVoiceChat() {
-        mediaPlayer?.setVolume(0.03f, 0.03f)
-    }
-
-    /** Restore music to normal volume (0.3f). */
-    fun restoreMusicVolume() {
-        mediaPlayer?.setVolume(0.3f, 0.3f)
-    }
 
     fun performHapticIfEnabled(view: View, feedbackConstant: Int) {
         if (vibrationEnabled.value) {

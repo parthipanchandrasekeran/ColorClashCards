@@ -250,6 +250,12 @@ class OnlineGameViewModel(
                     players.find { it.id == winnerId }
                 }
 
+                // Log state changes relevant to debugging
+                val prevState = _uiState.value
+                if (prevState.turnPhase != turnPhase || prevState.isMyTurn != isMyTurn) {
+                    Log.d("OnlineGame", "State update: turnPhase=$turnPhase, isMyTurn=$isMyTurn, currentTurn=${publicState.currentTurn}, userId=$userId, playableCards=${playable.size}, pendingDraw=${publicState.pendingDrawCount}")
+                }
+
                 _uiState.value = _uiState.value.copy(
                     publicState = publicState,
                     myHand = myHand,
@@ -313,8 +319,17 @@ class OnlineGameViewModel(
         try {
             val gameState = localGameState ?: return@withLock
 
+            Log.d("OnlineGame", "processAction: type=${action.type}, player=${action.playerId}, currentPlayer=${gameState.currentPlayer.id}, turnPhase=${gameState.turnPhase}")
+
             // Skip if not this player's turn
             if (gameState.currentPlayer.id != action.playerId) {
+                Log.w("OnlineGame", "processAction rejected: wrong turn. Expected=${gameState.currentPlayer.id}, got=${action.playerId}")
+                matchRepository.logGameEvent(roomId, "ACTION_REJECTED_WRONG_TURN", mapOf(
+                    "actionType" to action.type,
+                    "actionPlayer" to action.playerId,
+                    "expectedPlayer" to gameState.currentPlayer.id,
+                    "turnPhase" to gameState.turnPhase.name
+                ))
                 matchRepository.deleteAction(roomId, action.id)
                 return@withLock
             }
@@ -329,6 +344,20 @@ class OnlineGameViewModel(
                             try { CardColor.valueOf(it) } catch (e: Exception) { null }
                         }
                         newState = GameEngine.playCard(gameState, card, chosenColor)
+                        matchRepository.logGameEvent(roomId, "CARD_PLAYED", mapOf(
+                            "cardId" to card.id,
+                            "cardType" to card.type.name,
+                            "cardColor" to card.color.name,
+                            "chosenColor" to (chosenColor?.name ?: "none"),
+                            "newTurnPhase" to (newState?.turnPhase?.name ?: "null"),
+                            "newCurrentPlayer" to (newState?.currentPlayer?.id ?: "null"),
+                            "pendingDrawCount" to (newState?.pendingDrawCount ?: 0)
+                        ))
+                    } else {
+                        matchRepository.logGameEvent(roomId, "PLAY_CARD_FAILED_NOT_FOUND", mapOf(
+                            "cardId" to (action.cardId ?: "null"),
+                            "handSize" to gameState.currentPlayer.hand.size
+                        ))
                     }
                 }
                 ActionType.DRAW_CARD.name -> {
@@ -337,7 +366,17 @@ class OnlineGameViewModel(
                     } else {
                         1
                     }
+                    matchRepository.logGameEvent(roomId, "DRAW_CARD_PROCESSING", mapOf(
+                        "turnPhase" to gameState.turnPhase.name,
+                        "drawCount" to count,
+                        "pendingDrawCount" to gameState.pendingDrawCount,
+                        "deckSize" to gameState.deck.size
+                    ))
                     newState = GameEngine.drawCard(gameState, count)
+                    matchRepository.logGameEvent(roomId, "DRAW_CARD_PROCESSED", mapOf(
+                        "newTurnPhase" to (newState?.turnPhase?.name ?: "null"),
+                        "newCurrentPlayer" to (newState?.currentPlayer?.id ?: "null")
+                    ))
                 }
                 ActionType.CALL_LAST_CARD.name -> {
                     newState = GameEngine.callLastCard(gameState, action.playerId)
@@ -353,9 +392,19 @@ class OnlineGameViewModel(
                 if (newState.winner != null) {
                     matchRepository.endMatch(roomId, newState.winner?.id ?: return@withLock)
                 }
+            } else {
+                Log.w("OnlineGame", "processAction produced null state for ${action.type}")
+                matchRepository.logGameEvent(roomId, "ACTION_PRODUCED_NULL_STATE", mapOf(
+                    "actionType" to action.type,
+                    "turnPhase" to gameState.turnPhase.name
+                ))
             }
         } catch (e: Exception) {
             Log.e("OnlineGameViewModel", "Error processing action ${action.type}", e)
+            matchRepository.logGameEvent(roomId, "ACTION_ERROR", mapOf(
+                "actionType" to action.type,
+                "error" to (e.message ?: "unknown")
+            ))
         } finally {
             matchRepository.deleteAction(roomId, action.id)
         }
@@ -512,9 +561,25 @@ class OnlineGameViewModel(
      * Draw a card (client action).
      */
     fun drawCard() {
-        if (!_uiState.value.isMyTurn) return
+        val state = _uiState.value
+        Log.d("OnlineGame", "drawCard called: isMyTurn=${state.isMyTurn}, turnPhase=${state.turnPhase}, userId=${state.currentUserId}, currentTurn=${state.publicState?.currentTurn}")
+
+        if (!state.isMyTurn) {
+            Log.w("OnlineGame", "drawCard blocked: not my turn")
+            viewModelScope.launch {
+                matchRepository.logGameEvent(roomId, "DRAW_BLOCKED_NOT_MY_TURN", mapOf(
+                    "turnPhase" to state.turnPhase.name,
+                    "currentTurn" to (state.publicState?.currentTurn ?: "null")
+                ))
+            }
+            return
+        }
 
         viewModelScope.launch {
+            matchRepository.logGameEvent(roomId, "DRAW_CARD_SENT", mapOf(
+                "turnPhase" to state.turnPhase.name,
+                "pendingDrawCount" to (state.publicState?.pendingDrawCount ?: 0)
+            ))
             matchRepository.sendAction(
                 roomId = roomId,
                 actionType = ActionType.DRAW_CARD

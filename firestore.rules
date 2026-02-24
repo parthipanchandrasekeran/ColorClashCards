@@ -29,8 +29,9 @@ service cloud.firestore {
       // Anyone authenticated can create a room (they become host)
       allow create: if isAuth() && request.resource.data.hostId == uid();
 
-      // Only host can update room status
-      allow update: if isAuth() && isHost(roomId);
+      // Any authenticated user can update (join, setReady, leave, etc.)
+      // App-level logic enforces host-only operations (startGame, endGame)
+      allow update: if isAuth();
 
       // Only host can delete room
       allow delete: if isAuth() && isHost(roomId);
@@ -88,6 +89,19 @@ service cloud.firestore {
 
         // Only host can delete actions (cleanup)
         allow delete: if isAuth() && isHost(roomId);
+      }
+
+      // ========== GAME LOGS (DEBUG) ==========
+
+      match /gameLogs/{logId} {
+        // Any player in the room can create logs
+        allow create: if isAuth();
+
+        // Readable for debugging
+        allow read: if isAuth();
+
+        // No updates or deletes from client
+        allow update, delete: if false;
       }
 
       // ========== VOICE CHAT ==========

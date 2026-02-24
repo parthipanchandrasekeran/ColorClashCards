@@ -1,0 +1,23 @@
+{
+  "name": "colorclashcards-functions",
+  "version": "1.0.0",
+  "description": "Firebase Cloud Functions for Color Clash Cards and Ludo",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha test/**/*.test.js --reporter spec",
+    "test:watch": "mocha test/**/*.test.js --watch",
+    "lint": "eslint ."
+  },
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^11.11.0",
+    "firebase-functions": "^4.5.0"
+  },
+  "devDependencies": {
+    "mocha": "^10.2.0",
+    "eslint": "^8.54.0"
+  },
+  "private": true
+}

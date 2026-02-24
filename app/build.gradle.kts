@@ -32,8 +32,8 @@ android {
         applicationId = "com.parthipan.colorclashcards"
         minSdk = 24
         targetSdk = 35
-        versionCode = 42
-        versionName = "1.0.41"
+        versionCode = 45
+        versionName = "1.0.44"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -97,8 +97,6 @@ dependencies {
     implementation(libs.play.app.update)
     implementation(libs.play.app.update.ktx)
 
-    // WebRTC for voice chat
-    implementation("io.getstream:stream-webrtc-android:1.1.1")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

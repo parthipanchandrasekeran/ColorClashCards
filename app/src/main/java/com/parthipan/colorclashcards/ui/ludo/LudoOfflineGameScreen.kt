@@ -245,7 +245,7 @@ fun LudoOfflineGameScreen(
                     showTimer = uiState.showTimer,
                     isTimerWarning = uiState.isTimerWarning,
                     onRollDice = { viewModel.rollDice() },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
             }
         }
@@ -433,7 +433,11 @@ private fun OfflineCompactControls(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .testTag("gameControls"),
+            .testTag("gameControls")
+            .then(
+                if (canRoll && !isRolling) Modifier.clickable(onClick = onRollDice)
+                else Modifier
+            ),
         colors = CardDefaults.cardColors(
             containerColor = if (isTimerWarning && isHumanTurn) {
                 MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
@@ -469,7 +473,7 @@ private fun OfflineCompactControls(
                 text = message ?: when {
                     isTimerWarning && isHumanTurn -> "Hurry! ${timerRemainingSeconds}s left"
                     isRolling -> "Rolling..."
-                    canRoll -> "Tap dice to roll"
+                    canRoll -> "Tap to roll"
                     mustSelectToken -> "Select a token to move"
                     isHumanTurn -> "Roll the dice to continue"
                     else -> "Bot is thinking..."

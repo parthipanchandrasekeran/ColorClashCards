@@ -4,6 +4,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 
 import android.util.Log
 import com.parthipan.colorclashcards.data.model.*
@@ -430,9 +431,12 @@ class LudoRoomRepository {
      * Uses composite index on (isPublic, status) for efficient Firestore-level filtering.
      */
     fun observePublicRooms(): Flow<List<LudoRoom>> = callbackFlow {
+        val sixHoursAgo = Timestamp(System.currentTimeMillis() / 1000 - 6 * 3600, 0)
         val listener = roomsCollection
             .whereEqualTo("isPublic", true)
             .whereEqualTo("status", LudoRoomStatus.WAITING.name)
+            .whereGreaterThan("createdAt", sixHoursAgo)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
             .limit(50)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -449,9 +453,11 @@ class LudoRoomRepository {
                     try {
                         LudoRoom.fromMap(doc.id, doc.data ?: emptyMap())
                     } catch (e: Exception) {
+                        Log.w("LudoRoomRepository", "Failed to parse room ${doc.id}", e)
                         null
                     }
                 }
+                Log.d("LudoRoomRepository", "observePublicRooms: ${rooms.size} rooms found")
                 trySend(rooms)
             }
         awaitClose { listener.remove() }

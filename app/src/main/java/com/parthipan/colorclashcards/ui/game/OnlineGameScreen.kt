@@ -64,13 +64,13 @@ import com.parthipan.colorclashcards.game.model.CardColor
 import com.parthipan.colorclashcards.game.model.CardType
 import com.parthipan.colorclashcards.game.model.TurnPhase
 import com.parthipan.colorclashcards.ui.components.GameCardView
-import com.parthipan.colorclashcards.ui.components.VoiceChatControls
+
 import com.parthipan.colorclashcards.ui.theme.CardBlue
 import com.parthipan.colorclashcards.ui.theme.CardGreen
 import com.parthipan.colorclashcards.ui.theme.CardRed
 import com.parthipan.colorclashcards.ui.theme.CardYellow
-import com.parthipan.colorclashcards.voice.VoiceChatManager
-import com.google.firebase.auth.FirebaseAuth
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,12 +82,6 @@ fun OnlineGameScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val voiceChatScope = androidx.compose.runtime.rememberCoroutineScope()
-    val voiceChatManager = remember { VoiceChatManager(context, voiceChatScope) }
-    val localDisplayName = remember {
-        FirebaseAuth.getInstance().currentUser?.displayName ?: "Player"
-    }
 
     // Initialize game
     LaunchedEffect(roomId, isHost) {
@@ -214,8 +208,9 @@ fun OnlineGameScreen(
                                 // Draw pile
                                 OnlineDrawPile(
                                     cardsRemaining = uiState.publicState?.drawPileCount ?: 0,
-                                    canDraw = uiState.isMyTurn && uiState.turnPhase != TurnPhase.MUST_DRAW,
+                                    canDraw = uiState.isMyTurn && uiState.turnPhase == TurnPhase.PLAY_OR_DRAW,
                                     mustDraw = uiState.turnPhase == TurnPhase.MUST_DRAW && uiState.isMyTurn,
+                                    noPlayableCards = uiState.isMyTurn && uiState.turnPhase == TurnPhase.PLAY_OR_DRAW && uiState.playableCards.isEmpty(),
                                     onClick = { viewModel.drawCard() }
                                 )
 
@@ -298,17 +293,6 @@ fun OnlineGameScreen(
                 }
             }
 
-            // Voice chat FAB overlay
-            if (uiState.publicState != null) {
-                VoiceChatControls(
-                    voiceChatManager = voiceChatManager,
-                    roomPath = "rooms/$roomId",
-                    displayName = localDisplayName,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 16.dp)
-                )
-            }
 
             // Color picker dialog
             if (uiState.showColorPicker) {
@@ -460,11 +444,14 @@ private fun OnlineDrawPile(
     cardsRemaining: Int,
     canDraw: Boolean,
     mustDraw: Boolean,
+    noPlayableCards: Boolean = false,
     onClick: () -> Unit
 ) {
     val dummyCard = remember {
         Card(id = "draw-pile", color = CardColor.RED, type = CardType.NUMBER, number = 0)
     }
+
+    val shouldHighlight = mustDraw || noPlayableCards
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(contentAlignment = Alignment.Center) {
@@ -489,10 +476,13 @@ private fun OnlineDrawPile(
             Box(
                 modifier = Modifier
                     .then(
-                        if (mustDraw) {
+                        if (shouldHighlight) {
                             Modifier.border(
                                 width = 3.dp,
-                                brush = Brush.linearGradient(listOf(CardRed, Color.White, CardRed)),
+                                brush = Brush.linearGradient(
+                                    if (mustDraw) listOf(CardRed, Color.White, CardRed)
+                                    else listOf(CardBlue, Color.White, CardBlue)
+                                ),
                                 shape = RoundedCornerShape(14.dp)
                             )
                         } else Modifier
@@ -502,7 +492,7 @@ private fun OnlineDrawPile(
                     card = dummyCard,
                     modifier = Modifier.width(65.dp),
                     faceDown = true,
-                    isPlayable = mustDraw,
+                    isPlayable = shouldHighlight,
                     onClick = if (canDraw || mustDraw) onClick else null
                 )
             }
@@ -532,10 +522,18 @@ private fun OnlineDrawPile(
 
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = if (mustDraw) "Must draw!" else "Draw pile",
+            text = when {
+                mustDraw -> "Must draw!"
+                noPlayableCards -> "Tap to draw!"
+                else -> "Draw pile"
+            },
             style = MaterialTheme.typography.labelSmall,
-            color = if (mustDraw) CardRed else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = if (mustDraw) FontWeight.Bold else FontWeight.Normal
+            color = when {
+                mustDraw -> CardRed
+                noPlayableCards -> CardBlue
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            fontWeight = if (mustDraw || noPlayableCards) FontWeight.Bold else FontWeight.Normal
         )
     }
 }

@@ -4,6 +4,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import android.util.Log
 import com.parthipan.colorclashcards.data.model.ActionType
 import com.parthipan.colorclashcards.data.model.PlayerAction
 import com.parthipan.colorclashcards.data.model.PlayerHand
@@ -291,6 +292,35 @@ class MatchRepository(
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    // ==================== GAME LOGGING ====================
+
+    /**
+     * Log a game event to Firestore for debugging.
+     * Writes to rooms/{roomId}/gameLogs/{logId}
+     */
+    suspend fun logGameEvent(
+        roomId: String,
+        event: String,
+        details: Map<String, Any?> = emptyMap()
+    ) {
+        try {
+            val logData = mutableMapOf<String, Any?>(
+                "event" to event,
+                "playerId" to (currentUserId ?: "unknown"),
+                "timestamp" to Timestamp.now()
+            )
+            logData.putAll(details)
+
+            firestore.collection("rooms")
+                .document(roomId)
+                .collection("gameLogs")
+                .add(logData)
+                .await()
+        } catch (e: Exception) {
+            Log.w("MatchRepository", "Failed to write game log: $event", e)
         }
     }
 

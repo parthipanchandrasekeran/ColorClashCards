@@ -281,8 +281,11 @@ class LudoOfflineViewModel(
         val movableTokens = LudoEngine.getMovableTokens(currentPlayer, diceValue)
         val movableIds = movableTokens.map { it.id }
 
+        // Detect 3 consecutive sixes BEFORE engine resets the counter
+        val wasThreeSixes = gameState.consecutiveSixes >= 2 && diceValue == 6
+
         val message = when {
-            newState.consecutiveSixes >= 3 -> "Three 6s! Turn skipped."
+            wasThreeSixes -> "Three 6s in a row! Turn lost."
             movableTokens.isEmpty() -> {
                 // Provide specific message for why no moves are available
                 val hasActiveTokensInLane = currentPlayer.tokens.any { token ->
@@ -297,6 +300,8 @@ class LudoOfflineViewModel(
                     else -> "No valid moves. Turn passed."
                 }
             }
+            diceValue == 6 && newState.consecutiveSixes >= 2 && movableTokens.isNotEmpty() ->
+                "Rolled 6! Move a token. (3rd six loses your turn!)"
             diceValue == 6 && movableTokens.isNotEmpty() -> "Rolled 6! Move a token."
             else -> "Rolled $diceValue"
         }
@@ -321,7 +326,7 @@ class LudoOfflineViewModel(
             stopTurnTimer()
             _uiState.update { it.copy(showTimer = false) }
             botJob = viewModelScope.launch {
-                delay(1000)
+                delay(if (wasThreeSixes) 2500 else 1000)
                 processBotTurn()
             }
         }
@@ -509,12 +514,17 @@ class LudoOfflineViewModel(
         }
 
         // Handle player finished (Mode B: not full game over yet)
-        val message = if (result.playerFinished && !gameOver) {
+        var message = if (result.playerFinished && !gameOver) {
             val rank = gameState.getPlayerRank(result.move.playerId)
             val finishedPlayer = gameState.getPlayer(result.move.playerId)
             "${finishedPlayer?.name} finished in position $rank!"
         } else {
             buildMoveMessage(move, result.bonusTurn, gameOver)
+        }
+
+        // Warn about 3rd consecutive six risk
+        if (result.bonusTurn && !gameOver && gameState.consecutiveSixes >= 2) {
+            message += " (3rd six loses your turn!)"
         }
 
         val isStillHumanTurn = gameState.currentTurnPlayerId == currentState.humanPlayerId

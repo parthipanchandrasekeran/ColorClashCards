@@ -32,8 +32,8 @@ android {
         applicationId = "com.parthipan.colorclashcards"
         minSdk = 24
         targetSdk = 35
-        versionCode = 47
-        versionName = "1.0.46"
+        versionCode = 50
+        versionName = "1.0.49"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -72,6 +72,36 @@ object SnlEngine {
             return RollResult(newState, move, bonusTurn = false, threeSixes = true)
         }
 
+        // Entry rule: token starts off-board (0) and can enter only with a roll of 1.
+        if (!currentPlayer.isOnBoard && diceValue != 1) {
+            val move = SnlMove(
+                playerId = currentPlayer.id,
+                diceValue = diceValue,
+                fromPos = currentPlayer.position,
+                toPos = currentPlayer.position,
+                finalPos = currentPlayer.position,
+                moveType = SnlMoveType.NEED_ONE_TO_START
+            )
+
+            val newState = if (diceValue == 6) {
+                // Keep the bonus-turn rule for sixes, even while still off-board.
+                state.copy(
+                    diceValue = diceValue,
+                    lastMove = move,
+                    canRollDice = true,
+                    consecutiveSixes = consecutiveSixes
+                )
+            } else {
+                advanceToNextPlayer(state.copy(
+                    diceValue = diceValue,
+                    lastMove = move,
+                    consecutiveSixes = 0
+                ))
+            }
+
+            return RollResult(newState, move, bonusTurn = diceValue == 6)
+        }
+
         // Calculate movement
         val fromPos = currentPlayer.position
         val rawToPos = fromPos + diceValue
@@ -170,6 +200,38 @@ object SnlEngine {
 
         val updatedPlayer = currentPlayer.copy(position = finalPos)
         val updatedPlayers = state.players.map { if (it.id == currentPlayer.id) updatedPlayer else it }
+
+        if (finalPos == SnlGameState.WINNING_SQUARE) {
+            val updatedFinishOrder = state.finishOrder + currentPlayer.id
+            val activeCount = state.players.count { !it.hasWon && it.id != currentPlayer.id }
+
+            val newState = if (state.players.size <= 2 || activeCount <= 1) {
+                val finalOrder = if (activeCount == 1) {
+                    val lastPlayer = state.players.find { !it.hasWon && it.id != currentPlayer.id }
+                    if (lastPlayer != null) updatedFinishOrder + lastPlayer.id else updatedFinishOrder
+                } else updatedFinishOrder
+
+                state.copy(
+                    players = updatedPlayers,
+                    winnerId = currentPlayer.id,
+                    gameStatus = GameStatus.FINISHED,
+                    canRollDice = false,
+                    lastMove = move.copy(moveType = SnlMoveType.WIN),
+                    diceValue = diceValue,
+                    finishOrder = finalOrder
+                )
+            } else {
+                advanceToNextPlayer(state.copy(
+                    players = updatedPlayers,
+                    diceValue = diceValue,
+                    lastMove = move.copy(moveType = SnlMoveType.WIN),
+                    finishOrder = updatedFinishOrder,
+                    consecutiveSixes = 0
+                ))
+            }
+
+            return RollResult(newState, move.copy(moveType = SnlMoveType.WIN, finalPos = SnlGameState.WINNING_SQUARE), bonusTurn = false, playerFinished = true)
+        }
 
         // Bonus turn on rolling 6
         val bonusTurn = diceValue == 6

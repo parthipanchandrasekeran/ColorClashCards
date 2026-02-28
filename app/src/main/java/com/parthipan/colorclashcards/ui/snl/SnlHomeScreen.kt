@@ -71,6 +71,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.parthipan.colorclashcards.ui.components.GradientButton
 import com.parthipan.colorclashcards.ui.components.StaggeredEntrance
+import com.parthipan.colorclashcards.ui.components.FrostedPanel
 import com.parthipan.colorclashcards.ui.components.floatingShapes
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -254,9 +255,55 @@ private fun SnlMainMenu(
         )
     }
 
-    Spacer(modifier = Modifier.height(48.dp))
+    Spacer(modifier = Modifier.height(20.dp))
 
     StaggeredEntrance(index = 4) {
+        FrostedPanel(
+            modifier = Modifier.fillMaxWidth(),
+            tint = SnlBoardColors.Secondary
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Premium Match Modes",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Shortcuts that actually launch modes:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onPlayVsComputer,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Quick Solo")
+                    }
+                    OutlinedButton(
+                        onClick = onPlayOnline,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Online Squad")
+                    }
+                }
+                Text(
+                    text = "Need more control? Use full setup below.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(28.dp))
+
+    StaggeredEntrance(index = 5) {
         GradientButton(
             onClick = onPlayVsComputer,
             gradientColors = listOf(SnlBoardColors.Primary, SnlBoardColors.PrimaryDark),
@@ -282,7 +329,7 @@ private fun SnlMainMenu(
 
     Spacer(modifier = Modifier.height(12.dp))
 
-    StaggeredEntrance(index = 5) {
+    StaggeredEntrance(index = 6) {
         GradientButton(
             onClick = onPlayOnline,
             gradientColors = listOf(SnlBoardColors.PlayerColors[1], SnlBoardColors.PlayerColorsDark[1]),

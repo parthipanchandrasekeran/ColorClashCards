@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -225,6 +227,7 @@ fun GameHubScreen(
                         title = "Color Clash",
                         subtitle = "Card Game",
                         description = "Match colors and numbers in this fast-paced card game!",
+                        modes = listOf("Offline", "Online", "Solo"),
                         gradientColors = listOf(CardRed, CardBlue),
                         iconContent = {
                             ColorClashIcon()
@@ -245,6 +248,7 @@ fun GameHubScreen(
                         title = "Ludo",
                         subtitle = "Board Game",
                         description = "Classic board game - race your tokens to the finish!",
+                        modes = listOf("Offline", "Online", "2-4 Players"),
                         gradientColors = listOf(CardGreen, CardYellow),
                         iconContent = {
                             LudoIcon()
@@ -265,6 +269,7 @@ fun GameHubScreen(
                         title = "Snake & Ladder",
                         subtitle = "Board Game",
                         description = "Roll the dice, climb ladders and dodge snakes to reach 100!",
+                        modes = listOf("Offline", "Online", "Classic"),
                         gradientColors = listOf(Color(0xFFE53935), Color(0xFF43A047)),
                         iconContent = {
                             SnakeAndLadderIcon()
@@ -274,6 +279,8 @@ fun GameHubScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -284,6 +291,7 @@ private fun GameCard(
     title: String,
     subtitle: String,
     description: String,
+    modes: List<String>,
     gradientColors: List<Color>,
     iconContent: @Composable () -> Unit,
     onClick: () -> Unit,
@@ -314,7 +322,7 @@ private fun GameCard(
         interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
-            .height(180.dp)
+            .heightIn(min = 180.dp)
             .scale(scale)
             // G2: Colored shadow matching card gradient
             .shadow(
@@ -389,8 +397,28 @@ private fun GameCard(
                     Text(
                         text = description,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.9f)
+                        color = Color.White.copy(alpha = 0.9f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        modes.forEach { mode ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.White.copy(alpha = 0.24f))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = mode,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

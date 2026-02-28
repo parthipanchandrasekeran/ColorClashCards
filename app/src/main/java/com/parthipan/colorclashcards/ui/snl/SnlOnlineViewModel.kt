@@ -207,7 +207,9 @@ class SnlOnlineViewModel : ViewModel() {
                     matchRepository.updateMatchState(roomId, result.newState, diceValue)
 
                     if (result.newState.isGameOver) {
-                        matchRepository.endMatch(roomId, result.newState.winnerId!!)
+                        result.newState.winnerId?.let { winnerId ->
+                            matchRepository.endMatch(roomId, winnerId)
+                        }
                     }
                 }
             }
@@ -247,7 +249,9 @@ class SnlOnlineViewModel : ViewModel() {
             matchRepository.updateMatchState(roomId, gameState, diceValue)
 
             if (result.newState.isGameOver) {
-                matchRepository.endMatch(roomId, gameState.winnerId!!)
+                gameState.winnerId?.let { winnerId ->
+                    matchRepository.endMatch(roomId, winnerId)
+                }
                 return
             }
             if (!result.bonusTurn) break
@@ -324,7 +328,9 @@ class SnlOnlineViewModel : ViewModel() {
                 matchRepository.updateMatchState(roomId, result.newState, diceValue)
 
                 if (result.newState.isGameOver) {
-                    matchRepository.endMatch(roomId, result.newState.winnerId!!)
+                    result.newState.winnerId?.let { winnerId ->
+                        matchRepository.endMatch(roomId, winnerId)
+                    }
                 }
             } else {
                 matchRepository.sendAction(roomId, SnlActionType.ROLL_DICE)

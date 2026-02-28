@@ -228,6 +228,8 @@ function handleMoveRequest(gameState, playerId, tokenId) {
     newState: moveResult.newState,
     move: moveResult.move,
     captured: moveResult.captured,
+    bonusTurn: moveResult.bonusTurn,
+    hasWon: moveResult.hasWon,
     timestamp: Date.now()
   };
 }

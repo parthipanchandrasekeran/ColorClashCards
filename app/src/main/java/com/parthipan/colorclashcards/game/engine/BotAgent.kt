@@ -32,8 +32,13 @@ object BotAgent {
         if (playable.isEmpty()) return null
 
         // Easy mode: just play randomly
-        if (difficulty == "easy") {
+        if (difficulty.equals("easy", ignoreCase = true)) {
             return playable.random()
+        }
+
+        // Hard mode: optimize card shedding while keeping color control
+        if (difficulty.equals("hard", ignoreCase = true)) {
+            return chooseHardModeCard(playable, currentColor, hand)
         }
 
         // Normal mode: use strategy
@@ -112,6 +117,36 @@ object BotAgent {
             CardType.REVERSE -> 1
             else -> 0
         }
+    }
+
+    /**
+     * Hard mode strategy:
+     * - Prefer high-point action cards to reduce penalty risk
+     * - Prefer cards in the currently dominant color to keep momentum
+     * - Keep wild cards as last resort unless hand is mostly wild
+     */
+    private fun chooseHardModeCard(
+        playable: List<Card>,
+        currentColor: CardColor,
+        hand: List<Card>
+    ): Card {
+        val nonWildPlayable = playable.filterNot { it.type.isWild() }
+        val colorFrequency = CardColor.playableColors().associateWith { color ->
+            hand.count { it.color == color }
+        }
+        val dominantColor = colorFrequency.maxByOrNull { it.value }?.key ?: currentColor
+
+        val weighted = nonWildPlayable.sortedWith(
+            compareByDescending<Card> { it.getPoints() }
+                .thenByDescending { it.color == dominantColor }
+                .thenByDescending { it.color == currentColor }
+                .thenByDescending { it.number ?: 0 }
+        )
+
+        if (weighted.isNotEmpty()) return weighted.first()
+
+        // Only wild cards available: burn +4 first when all options are wild.
+        return playable.maxByOrNull { it.getPoints() } ?: playable.first()
     }
 
     /**

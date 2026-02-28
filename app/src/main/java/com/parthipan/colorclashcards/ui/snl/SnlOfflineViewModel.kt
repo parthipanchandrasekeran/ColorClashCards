@@ -478,6 +478,7 @@ class SnlOfflineViewModel(
             move.moveType == SnlMoveType.SNAKE_BITE -> "Snake! Slid from ${move.toPos} to ${move.finalPos}"
             move.moveType == SnlMoveType.LADDER_CLIMB -> "Ladder! Climbed from ${move.toPos} to ${move.finalPos}"
             move.moveType == SnlMoveType.OVERSHOOT -> "Need exact roll to reach 100."
+            move.moveType == SnlMoveType.NEED_ONE_TO_START -> "Roll 1 to enter the board."
             result.bonusTurn -> "Rolled 6! Roll again."
             else -> "Moved to ${move.finalPos}"
         }
@@ -490,6 +491,7 @@ class SnlOfflineViewModel(
             SnlMoveType.SNAKE_BITE -> "$botName hit a snake! (${move.toPos} → ${move.finalPos})"
             SnlMoveType.LADDER_CLIMB -> "$botName climbed a ladder! (${move.toPos} → ${move.finalPos})"
             SnlMoveType.OVERSHOOT -> "$botName overshot 100."
+            SnlMoveType.NEED_ONE_TO_START -> "$botName needs 1 to start."
             else -> "$botName moved to ${move.finalPos}."
         }
     }

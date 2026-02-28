@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -64,6 +65,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.parthipan.colorclashcards.ui.components.GradientButton
 import com.parthipan.colorclashcards.ui.components.StaggeredEntrance
+import com.parthipan.colorclashcards.ui.components.FrostedPanel
+import com.parthipan.colorclashcards.ui.components.PremiumPillRow
 import com.parthipan.colorclashcards.ui.components.floatingShapes
 import com.parthipan.colorclashcards.ui.components.pulsingBorder
 import com.parthipan.colorclashcards.ui.theme.CardBlue
@@ -233,10 +236,48 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            StaggeredEntrance(index = 2) {
+                FrostedPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    tint = CardBlue
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = CardYellow,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Premium Play Experience",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text(
+                            text = "Smoother animations, smart bot difficulty and cleaner match controls.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        PremiumPillRow(
+                            "Quick Match" to CardGreen,
+                            "Live Rooms" to CardBlue,
+                            "Smart AI" to CardRed
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Rejoin Game button with pulsing border
             AnimatedVisibility(visible = uiState.activeGame != null) {
                 Column {
-                    StaggeredEntrance(index = 2) {
+                    StaggeredEntrance(index = 3) {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -289,7 +330,7 @@ fun HomeScreen(
             }
 
             // Primary buttons - Gradient
-            StaggeredEntrance(index = 3) {
+            StaggeredEntrance(index = 4) {
                 GradientButton(
                     onClick = onNavigateToPlayOnline,
                     gradientColors = listOf(CardGreen, Color(0xFF2E7D32)),
@@ -313,7 +354,7 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            StaggeredEntrance(index = 4) {
+            StaggeredEntrance(index = 5) {
                 GradientButton(
                     onClick = onNavigateToPlayVsComputer,
                     gradientColors = listOf(CardBlue, Color(0xFF1565C0)),
@@ -338,7 +379,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Secondary buttons
-            StaggeredEntrance(index = 5) {
+            StaggeredEntrance(index = 6) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
@@ -378,17 +419,12 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Stats card
-            StaggeredEntrance(index = 6) {
-                Card(
+            StaggeredEntrance(index = 7) {
+                FrostedPanel(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                    tint = CardGreen
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
+                    Column {
                         Text(
                             text = "Your Stats",
                             style = MaterialTheme.typography.titleMedium,
@@ -398,7 +434,7 @@ fun HomeScreen(
 
                         if (totalGames == 0) {
                             Text(
-                                text = "Start a match to see stats",
+                                text = "Start a match to unlock your performance dashboard",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.fillMaxWidth(),

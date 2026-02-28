@@ -158,6 +158,12 @@ fun SoloSetupScreen(
                                 selected = selectedDifficulty == "normal",
                                 onClick = { selectedDifficulty = "normal" }
                             )
+                            DifficultyOption(
+                                label = "Hard",
+                                description = "Prioritizes high-value plays and color control",
+                                selected = selectedDifficulty == "hard",
+                                onClick = { selectedDifficulty = "hard" }
+                            )
                         }
                     }
                 }
@@ -260,6 +266,7 @@ private fun DifficultyOption(
     val chipColor = when (label.lowercase()) {
         "easy" -> CardGreen
         "normal" -> CardYellow
+        "hard" -> Color(0xFFE53935)
         else -> CardGreen
     }
 

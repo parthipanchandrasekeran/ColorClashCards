@@ -25,6 +25,8 @@ data class SnlMove(
  * Types of moves in Snake & Ladder.
  */
 enum class SnlMoveType {
+    /** Player is off-board and must roll a 1 to enter the board. */
+    NEED_ONE_TO_START,
     /** Normal move — no snake or ladder. */
     NORMAL,
     /** Landed on a snake head — slid down. */

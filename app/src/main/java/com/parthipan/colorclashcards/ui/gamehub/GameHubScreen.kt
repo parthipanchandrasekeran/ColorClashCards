@@ -225,6 +225,7 @@ fun GameHubScreen(
                         title = "Color Clash",
                         subtitle = "Card Game",
                         description = "Match colors and numbers in this fast-paced card game!",
+                        modes = listOf("Offline", "Online", "Solo"),
                         gradientColors = listOf(CardRed, CardBlue),
                         iconContent = {
                             ColorClashIcon()
@@ -245,6 +246,7 @@ fun GameHubScreen(
                         title = "Ludo",
                         subtitle = "Board Game",
                         description = "Classic board game - race your tokens to the finish!",
+                        modes = listOf("Offline", "Online", "2-4 Players"),
                         gradientColors = listOf(CardGreen, CardYellow),
                         iconContent = {
                             LudoIcon()
@@ -265,6 +267,7 @@ fun GameHubScreen(
                         title = "Snake & Ladder",
                         subtitle = "Board Game",
                         description = "Roll the dice, climb ladders and dodge snakes to reach 100!",
+                        modes = listOf("Offline", "Online", "Classic"),
                         gradientColors = listOf(Color(0xFFE53935), Color(0xFF43A047)),
                         iconContent = {
                             SnakeAndLadderIcon()
@@ -284,6 +287,7 @@ private fun GameCard(
     title: String,
     subtitle: String,
     description: String,
+    modes: List<String>,
     gradientColors: List<Color>,
     iconContent: @Composable () -> Unit,
     onClick: () -> Unit,
@@ -391,6 +395,24 @@ private fun GameCard(
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.White.copy(alpha = 0.9f)
                     )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        modes.forEach { mode ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.White.copy(alpha = 0.24f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = mode,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

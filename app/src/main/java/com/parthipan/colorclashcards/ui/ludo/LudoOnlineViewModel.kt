@@ -348,7 +348,9 @@ class LudoOnlineViewModel : ViewModel() {
                             matchRepository.updateMatchState(roomId, result.newState)
 
                             if (result.hasWon) {
-                                matchRepository.endMatch(roomId, result.newState.winnerId!!)
+                                result.newState.winnerId?.let { winnerId ->
+                                    matchRepository.endMatch(roomId, winnerId)
+                                }
                             }
                         }
                         is MoveResult.Error -> {
@@ -436,7 +438,9 @@ class LudoOnlineViewModel : ViewModel() {
                     matchRepository.updateMatchState(roomId, gameState)
 
                     if (result.hasWon) {
-                        matchRepository.endMatch(roomId, gameState.winnerId!!)
+                        gameState.winnerId?.let { winnerId ->
+                            matchRepository.endMatch(roomId, winnerId)
+                        }
                         return
                     }
                     if (!result.bonusTurn) break  // Turn over
@@ -727,7 +731,9 @@ class LudoOnlineViewModel : ViewModel() {
                         matchRepository.updateMatchState(roomId, result.newState)
 
                         if (result.hasWon) {
-                            matchRepository.endMatch(roomId, result.newState.winnerId!!)
+                            result.newState.winnerId?.let { winnerId ->
+                                matchRepository.endMatch(roomId, winnerId)
+                            }
                         }
                     }
                     is MoveResult.Error -> {

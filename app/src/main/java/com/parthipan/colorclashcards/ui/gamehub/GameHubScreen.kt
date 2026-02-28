@@ -59,6 +59,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import com.parthipan.colorclashcards.ui.components.floatingShapes
+import com.parthipan.colorclashcards.ui.components.FrostedPanel
+import com.parthipan.colorclashcards.ui.components.PremiumPillRow
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
@@ -202,12 +204,32 @@ fun GameHubScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = 16.dp)
                     .graphicsLayer {
                         alpha = titleAlpha
                         translationY = titleOffset
                     }
             )
+
+            FrostedPanel(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                tint = CardBlue
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Pick your vibe",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    PremiumPillRow(
+                        "Quick Solo" to CardGreen,
+                        "Online Party" to CardBlue,
+                        "Rank Warm-up" to CardRed
+                    )
+                }
+            }
 
             // Game Cards
             Column(
